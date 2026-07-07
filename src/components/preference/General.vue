@@ -8,6 +8,7 @@ import { useIpc } from '@/composables/useIpc'
 import { useEngineRestart } from '@/composables/useEngineRestart'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { arch as osArch, version as osVersion } from '@tauri-apps/plugin-os'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { usePlatform } from '@/composables/usePlatform'
 import { getVersion as getAppVersion } from '@tauri-apps/api/app'
 import { getVersion as getAria2Version } from '@/api/aria2'
@@ -21,13 +22,22 @@ import {
   buildGeneralSystemConfig,
   transformGeneralForStore,
 } from '@/composables/useGeneralPreference'
-import { COLOR_SCHEMES, CUSTOM_COLOR_SCHEME_ID, ENGINE_RPC_PORT } from '@shared/constants'
+import {
+  BACKGROUND_OPACITY_MAX,
+  BACKGROUND_OPACITY_MIN,
+  COLOR_SCHEMES,
+  CUSTOM_COLOR_SCHEME_ID,
+  ENGINE_RPC_PORT,
+} from '@shared/constants'
 import { normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
   NForm,
   NFormItem,
+  NInput,
+  NInputNumber,
   NSelect,
+  NSlider,
   NSwitch,
   NButton,
   NDivider,
@@ -43,7 +53,7 @@ import {
 } from 'naive-ui'
 import PreferenceActionBar from './PreferenceActionBar.vue'
 import MTooltip from '@/components/common/MTooltip.vue'
-import { CloudDownloadOutline } from '@vicons/ionicons5'
+import { CloudDownloadOutline, ImageOutline, TrashOutline } from '@vicons/ionicons5'
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 import type { UpdateChannel } from '@shared/types'
 import PreferenceHintLabel from './PreferenceHintLabel.vue'
@@ -248,6 +258,42 @@ const taskCardModeOptions = computed(() => [
   { label: t('preferences.task-card-mode-full'), value: 'full' },
   { label: t('preferences.task-card-mode-compact'), value: 'compact' },
 ])
+
+function normalizeBackgroundOpacity(value: number | null): number {
+  const opacity = Number(value)
+  if (!Number.isFinite(opacity)) return BACKGROUND_OPACITY_MIN
+  return Math.min(BACKGROUND_OPACITY_MAX, Math.max(BACKGROUND_OPACITY_MIN, Math.round(opacity)))
+}
+
+const backgroundOpacityValue = computed({
+  get: () => form.value.backgroundOpacity,
+  set: (value: number | null) => {
+    form.value.backgroundOpacity = normalizeBackgroundOpacity(value)
+  },
+})
+
+async function handleSelectBackgroundImage(): Promise<void> {
+  try {
+    const selected = await openDialog({
+      directory: false,
+      multiple: false,
+      filters: [
+        {
+          name: t('preferences.background-image-files'),
+          extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'],
+        },
+      ],
+    })
+    if (typeof selected === 'string') form.value.backgroundImagePath = selected
+  } catch (e) {
+    logger.error('General.backgroundImage', e)
+    message.error(t('preferences.background-image-select-failed'))
+  }
+}
+
+function handleClearBackgroundImage(): void {
+  form.value.backgroundImagePath = ''
+}
 
 function handleCheckUpdate() {
   updateDialogRef.value?.open()
@@ -477,8 +523,68 @@ onMounted(async () => {
         <NFormItem :label="t('preferences.sidebar-task-counts')">
           <NSwitch v-model:value="form.sidebarTaskCounts" />
         </NFormItem>
-        <NFormItem :label="t('preferences.task-list-watermark')">
+        <NFormItem :label="t('preferences.default-background-icon')">
           <NSwitch v-model:value="form.taskListWatermark" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.custom-background-image')">
+          <div class="background-image-picker">
+            <NInput
+              :value="form.backgroundImagePath"
+              readonly
+              class="pref-control-full"
+              :placeholder="t('preferences.background-image-empty')"
+            />
+            <MTooltip>
+              <template #trigger>
+                <NButton
+                  class="pref-icon-button"
+                  :aria-label="t('preferences.custom-background-image')"
+                  @click="handleSelectBackgroundImage"
+                >
+                  <template #icon>
+                    <NIcon :size="16"><ImageOutline /></NIcon>
+                  </template>
+                </NButton>
+              </template>
+              {{ t('preferences.custom-background-image') }}
+            </MTooltip>
+            <MTooltip>
+              <template #trigger>
+                <NButton
+                  class="pref-icon-button"
+                  :disabled="!form.backgroundImagePath"
+                  :aria-label="t('preferences.clear-background-image')"
+                  @click="handleClearBackgroundImage"
+                >
+                  <template #icon>
+                    <NIcon :size="16"><TrashOutline /></NIcon>
+                  </template>
+                </NButton>
+              </template>
+              {{ t('preferences.clear-background-image') }}
+            </MTooltip>
+          </div>
+        </NFormItem>
+        <NFormItem :label="t('preferences.background-opacity')">
+          <div class="background-opacity-control">
+            <NSlider
+              v-model:value="backgroundOpacityValue"
+              :min="BACKGROUND_OPACITY_MIN"
+              :max="BACKGROUND_OPACITY_MAX"
+              :step="1"
+              class="background-opacity-slider"
+            />
+            <NInputNumber
+              v-model:value="backgroundOpacityValue"
+              :min="BACKGROUND_OPACITY_MIN"
+              :max="BACKGROUND_OPACITY_MAX"
+              :step="1"
+              :precision="0"
+              :show-button="false"
+              class="background-opacity-input"
+            />
+            <NText depth="3" class="background-opacity-unit">%</NText>
+          </div>
         </NFormItem>
         <NFormItem v-if="isMac" :label="t('preferences.dock-badge-speed')">
           <NSwitch v-model:value="form.dockBadgeSpeed" />
@@ -633,5 +739,34 @@ onMounted(async () => {
   width: 14px;
   height: 14px;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+.background-image-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(560px, 100%);
+  min-width: 0;
+}
+.background-image-picker .n-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.background-opacity-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, 100%);
+  min-width: 0;
+}
+.background-opacity-slider {
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+.background-opacity-input {
+  flex: 0 0 72px;
+  width: 72px;
+}
+.background-opacity-unit {
+  flex: 0 0 auto;
 }
 </style>

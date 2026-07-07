@@ -6,6 +6,8 @@ import {
   ARIA2_LOG_LEVELS,
   PROXY_SCOPE_OPTIONS,
   UPDATE_CHANNELS,
+  BACKGROUND_OPACITY_MIN,
+  BACKGROUND_OPACITY_MAX,
 } from '@shared/constants'
 import { getAllowedColorSchemeIds, normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { runMigrations, type MigrationResult } from '@shared/utils/configMigration'
@@ -96,6 +98,36 @@ function normalizeBoundedInteger(
   if (Number.isInteger(number) && number >= min && number <= max) return number
   repairs.push(key)
   return fallback
+}
+
+function normalizeClampedInteger(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+  key: string,
+  repairs: string[],
+): number {
+  const number = Number(value)
+  if (!Number.isFinite(number)) {
+    repairs.push(key)
+    return fallback
+  }
+
+  const integer = Math.round(number)
+  const clamped = Math.min(max, Math.max(min, integer))
+  if (clamped !== number) repairs.push(key)
+  return clamped
+}
+
+function normalizeOptionalString(value: unknown, fallback: string, key: string, repairs: string[]): string {
+  if (typeof value !== 'string') {
+    repairs.push(key)
+    return fallback
+  }
+  const trimmed = value.trim()
+  if (trimmed !== value) repairs.push(key)
+  return trimmed
 }
 
 function normalizeProxy(value: unknown, repairs: string[]): ProxyConfig {
@@ -192,6 +224,20 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
   const customColorScheme = normalizeCustomColorScheme(config.customColorScheme)
   if (config.customColorScheme !== customColorScheme) repairs.push('customColorScheme')
   config.customColorScheme = customColorScheme
+  config.backgroundImagePath = normalizeOptionalString(
+    config.backgroundImagePath,
+    DEFAULT_APP_CONFIG.backgroundImagePath,
+    'backgroundImagePath',
+    repairs,
+  )
+  config.backgroundOpacity = normalizeClampedInteger(
+    config.backgroundOpacity,
+    DEFAULT_APP_CONFIG.backgroundOpacity,
+    BACKGROUND_OPACITY_MIN,
+    BACKGROUND_OPACITY_MAX,
+    'backgroundOpacity',
+    repairs,
+  )
   repairEnum(config, 'updateChannel', UPDATE_CHANNELS, DEFAULT_APP_CONFIG.updateChannel, repairs)
   repairEnum(config, 'logLevel', APP_LOG_LEVELS, DEFAULT_APP_CONFIG.logLevel, repairs)
   repairEnum(config, 'aria2LogLevel', ARIA2_LOG_LEVELS, DEFAULT_APP_CONFIG.aria2LogLevel, repairs)

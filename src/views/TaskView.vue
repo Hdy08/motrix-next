@@ -6,11 +6,13 @@ import { useTaskStore } from '@/stores/task'
 import { useAppStore } from '@/stores/app'
 import { usePreferenceStore } from '@/stores/preference'
 import { useTheme } from '@/composables/useTheme'
+import { useLocalImageObjectUrl } from '@/composables/useLocalImageObjectUrl'
 
 import { isEngineReady } from '@/api/aria2'
 import { useTaskActions } from '@/composables/useTaskActions'
 
 import { logger } from '@shared/logger'
+import { BACKGROUND_OPACITY_MAX, BACKGROUND_OPACITY_MIN, DEFAULT_APP_CONFIG } from '@shared/constants'
 import { useDialog } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
 import TaskList from '@/components/task/TaskList.vue'
@@ -29,7 +31,23 @@ const dialog = useDialog()
 const message = useAppMessage()
 const { isDark } = useTheme()
 const watermarkSrc = computed(() => (isDark.value ? watermarkLight : watermarkDark))
-const showTaskListWatermark = computed(() => preferenceStore.config.taskListWatermark)
+const customBackgroundImagePath = computed(() => (preferenceStore.config.backgroundImagePath ?? '').trim())
+const backgroundOpacity = computed(() => {
+  const opacity = Number(preferenceStore.config.backgroundOpacity)
+  const percent = Number.isFinite(opacity) ? opacity : DEFAULT_APP_CONFIG.backgroundOpacity
+  return Math.min(BACKGROUND_OPACITY_MAX, Math.max(BACKGROUND_OPACITY_MIN, percent)) / 100
+})
+const customBackgroundImageUrl = useLocalImageObjectUrl(customBackgroundImagePath)
+const hasCustomBackgroundImagePath = computed(() => customBackgroundImagePath.value.length > 0)
+const showCustomBackgroundImage = computed(() => customBackgroundImageUrl.value.length > 0)
+const showDefaultBackgroundIcon = computed(
+  () => preferenceStore.config.taskListWatermark && !hasCustomBackgroundImagePath.value,
+)
+const showTaskBackground = computed(() => showCustomBackgroundImage.value || showDefaultBackgroundIcon.value)
+const backgroundLayerStyle = computed(() => ({ opacity: String(backgroundOpacity.value) }))
+const customBackgroundImageStyle = computed(() => ({
+  backgroundImage: customBackgroundImageUrl.value ? `url(${JSON.stringify(customBackgroundImageUrl.value)})` : 'none',
+}))
 
 const stoppingGids = ref<string[]>([])
 provide('stoppingGids', stoppingGids)
@@ -126,10 +144,17 @@ onBeforeUnmount(() => {
       <TaskActions />
     </header>
     <div class="panel-body">
-      <!-- Brand watermark stays outside the scroll container so task cards scroll above it. -->
+      <!-- Background stays outside the scroll container so task cards scroll above it. -->
       <Transition name="watermark-fade">
-        <div v-if="showTaskListWatermark" class="watermark" @dragstart.prevent @selectstart.prevent>
-          <img :src="watermarkSrc" alt="Motrix Next" class="watermark-brand" draggable="false" />
+        <div
+          v-if="showTaskBackground"
+          class="task-background"
+          :style="backgroundLayerStyle"
+          @dragstart.prevent
+          @selectstart.prevent
+        >
+          <div v-if="showCustomBackgroundImage" class="task-background-image" :style="customBackgroundImageStyle" />
+          <img v-else :src="watermarkSrc" alt="Motrix Next" class="task-background-icon" draggable="false" />
         </div>
       </Transition>
       <div class="panel-content">
@@ -180,8 +205,8 @@ onBeforeUnmount(() => {
   align-self: flex-start;
 }
 /*
- * .panel-body creates the positioning context for the watermark.
- * The watermark is absolutely positioned here (outside the scroll flow),
+ * .panel-body creates the positioning context for the background.
+ * The background is absolutely positioned here (outside the scroll flow),
  * while .panel-content scrolls independently on top.
  */
 .panel-body {
@@ -198,12 +223,12 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* z-index lifts scrollable content above the watermark layer */
+  /* z-index lifts scrollable content above the background layer */
   position: relative;
   z-index: 1;
 }
-/* ── Permanent watermark — pinned to scroll container viewport ────── */
-.watermark {
+/* ── Permanent task background — pinned to scroll container viewport ────── */
+.task-background {
   position: absolute;
   inset: 0;
   display: flex;
@@ -213,12 +238,18 @@ onBeforeUnmount(() => {
   user-select: none;
   z-index: 0;
 }
-.watermark-brand {
+.task-background-icon {
   max-width: 480px;
   width: 80%;
-  opacity: 0.35;
   user-select: none;
   -webkit-user-drag: none;
+}
+.task-background-image {
+  width: 100%;
+  height: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 .watermark-fade-enter-active,
 .watermark-fade-leave-active {

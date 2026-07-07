@@ -144,6 +144,26 @@ describe('hydrateAppConfig', () => {
     )
   })
 
+  it('repairs invalid background image settings', () => {
+    const result = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      backgroundImagePath: '  C:\\Users\\me\\Pictures\\bg.png  ',
+      backgroundOpacity: 125,
+    } as Partial<AppConfig>)
+    const invalid = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      backgroundImagePath: null,
+      backgroundOpacity: 'not-a-number',
+    } as unknown as Partial<AppConfig>)
+
+    expect(result.config.backgroundImagePath).toBe('C:\\Users\\me\\Pictures\\bg.png')
+    expect(result.config.backgroundOpacity).toBe(100)
+    expect(result.repairs).toEqual(expect.arrayContaining(['backgroundImagePath', 'backgroundOpacity']))
+    expect(invalid.config.backgroundImagePath).toBe(DEFAULT_APP_CONFIG.backgroundImagePath)
+    expect(invalid.config.backgroundOpacity).toBe(DEFAULT_APP_CONFIG.backgroundOpacity)
+    expect(invalid.repairs).toEqual(expect.arrayContaining(['backgroundImagePath', 'backgroundOpacity']))
+  })
+
   it('accepts aria2 notice logs without allowing notice for Motrix logs', () => {
     const result = hydrateAppConfig({
       configVersion: CONFIG_VERSION,

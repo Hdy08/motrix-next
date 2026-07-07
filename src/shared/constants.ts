@@ -330,6 +330,9 @@ export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.flatMap((group) =>
   group.options.filter((option) => option.cdn).map((option) => option.value),
 )
 
+export const BACKGROUND_OPACITY_MIN = 0
+export const BACKGROUND_OPACITY_MAX = 100
+
 export const DEFAULT_APP_CONFIG = {
   configVersion: 5,
   dbSchemaVersion: CURRENT_DB_SCHEMA_VERSION,
@@ -339,6 +342,8 @@ export const DEFAULT_APP_CONFIG = {
   customColorScheme: DEFAULT_CUSTOM_COLOR_SCHEME,
   taskCardMode: 'full' as const,
   taskListWatermark: true,
+  backgroundImagePath: '',
+  backgroundOpacity: 35,
   sidebarTaskCounts: true,
   taskPageSize: 20,
   locale: 'auto',

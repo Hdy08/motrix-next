@@ -80,6 +80,16 @@ describe('buildGeneralForm', () => {
     expect(form.taskListWatermark).toBe(DEFAULT_APP_CONFIG.taskListWatermark)
   })
 
+  it('defaults backgroundImagePath from DEFAULT_APP_CONFIG', () => {
+    const form = buildGeneralForm(emptyConfig)
+    expect(form.backgroundImagePath).toBe(DEFAULT_APP_CONFIG.backgroundImagePath)
+  })
+
+  it('defaults backgroundOpacity from DEFAULT_APP_CONFIG', () => {
+    const form = buildGeneralForm(emptyConfig)
+    expect(form.backgroundOpacity).toBe(DEFAULT_APP_CONFIG.backgroundOpacity)
+  })
+
   it('reads taskCardMode from config', () => {
     const form = buildGeneralForm({ taskCardMode: 'compact' } as AppConfig)
     expect(form.taskCardMode).toBe('compact')
@@ -88,6 +98,21 @@ describe('buildGeneralForm', () => {
   it('reads taskListWatermark from config', () => {
     const form = buildGeneralForm({ taskListWatermark: false } as AppConfig)
     expect(form.taskListWatermark).toBe(false)
+  })
+
+  it('reads backgroundImagePath from config', () => {
+    const form = buildGeneralForm({ backgroundImagePath: 'C:\\Users\\me\\Pictures\\bg.png' } as AppConfig)
+    expect(form.backgroundImagePath).toBe('C:\\Users\\me\\Pictures\\bg.png')
+  })
+
+  it('reads backgroundOpacity from config', () => {
+    const form = buildGeneralForm({ backgroundOpacity: 72 } as AppConfig)
+    expect(form.backgroundOpacity).toBe(72)
+  })
+
+  it('persists background image settings as user config keys', () => {
+    expect(userKeys).toContain('background-image-path')
+    expect(userKeys).toContain('background-opacity')
   })
 
   it('reads showProgressBar from config', () => {
@@ -225,9 +250,9 @@ describe('buildGeneralForm', () => {
     expect(form.lightweightMode).toBe(true)
   })
 
-  // ── Completeness: all 18 fields are present ─────────────────────
+  // ── Completeness: all fields are present ─────────────────────────
 
-  it('returns all 20 form fields', () => {
+  it('returns all 22 form fields', () => {
     const form = buildGeneralForm(emptyConfig)
     const keys = Object.keys(form)
     expect(keys).toContain('locale')
@@ -236,6 +261,8 @@ describe('buildGeneralForm', () => {
     expect(keys).toContain('customColorScheme')
     expect(keys).toContain('taskCardMode')
     expect(keys).toContain('taskListWatermark')
+    expect(keys).toContain('backgroundImagePath')
+    expect(keys).toContain('backgroundOpacity')
     expect(keys).toContain('sidebarTaskCounts')
     expect(keys).toContain('autoCheckUpdate')
     expect(keys).toContain('autoCheckUpdateInterval')
@@ -250,7 +277,7 @@ describe('buildGeneralForm', () => {
     expect(keys).toContain('hideDockOnMinimize')
     expect(keys).toContain('traySpeedometer')
     expect(keys).toContain('lightweightMode')
-    expect(keys).toHaveLength(20)
+    expect(keys).toHaveLength(22)
   })
 })
 
@@ -264,6 +291,8 @@ describe('buildGeneralSystemConfig', () => {
     customColorScheme: '#737373',
     taskCardMode: 'full',
     taskListWatermark: true,
+    backgroundImagePath: '',
+    backgroundOpacity: 35,
     sidebarTaskCounts: true,
     autoCheckUpdate: true,
     autoCheckUpdateInterval: 0,
@@ -309,6 +338,8 @@ describe('transformGeneralForStore', () => {
     customColorScheme: '#737373',
     taskCardMode: 'full',
     taskListWatermark: true,
+    backgroundImagePath: '',
+    backgroundOpacity: 35,
     sidebarTaskCounts: true,
     autoCheckUpdate: true,
     autoCheckUpdateInterval: 0,
@@ -333,6 +364,8 @@ describe('transformGeneralForStore', () => {
     expect(result.customColorScheme).toBe('#737373')
     expect(result.taskCardMode).toBe('full')
     expect(result.taskListWatermark).toBe(true)
+    expect(result.backgroundImagePath).toBe('')
+    expect(result.backgroundOpacity).toBe(35)
     expect(result.sidebarTaskCounts).toBe(true)
     expect(result.autoCheckUpdate).toBe(true)
     expect(result.autoCheckUpdateInterval).toBe(0)

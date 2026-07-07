@@ -34,7 +34,7 @@
     "targets": "all",
     "publisher": "AnInsomniacy",
     "copyright": "Copyright © 2025 AnInsomniacy. All rights reserved.",
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "externalBin": ["binaries/motrix-next-engine"],
     "resources": [
       "binaries/aria2.conf",

@@ -19,6 +19,8 @@ const userKeys = [
   'cookie',
   'custom-tracker-urls',
   'custom-color-scheme',
+  'background-image-path',
+  'background-opacity',
   'clipboard',
   'clear-completed-on-exit',
   'color-scheme',
