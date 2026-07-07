@@ -46,6 +46,7 @@ impl PendingFrontendActionState {
 pub enum FrontendActionChannel {
     #[cfg(target_os = "macos")]
     MenuEvent,
+    NotificationAction,
     TrayMenuAction,
 }
 
@@ -54,6 +55,7 @@ impl FrontendActionChannel {
         match self {
             #[cfg(target_os = "macos")]
             Self::MenuEvent => "menu-event",
+            Self::NotificationAction => "notification-action",
             Self::TrayMenuAction => "tray-menu-action",
         }
     }
@@ -73,6 +75,7 @@ pub enum FrontendActionKind {
     ReleaseNotes,
     #[cfg(target_os = "macos")]
     ReportIssue,
+    ShowTaskList,
 }
 
 impl FrontendActionKind {
@@ -89,6 +92,7 @@ impl FrontendActionKind {
             Self::ReleaseNotes => "release-notes",
             #[cfg(target_os = "macos")]
             Self::ReportIssue => "report-issue",
+            Self::ShowTaskList => "show-task-list",
         }
     }
 }

@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'Aktiver systemvarsler',
   'notify-on-start': 'Varsle ved nedlastingsstart',
   'notify-on-complete': 'Varsle ved fullført nedlasting',
+  'open-folder-on-notification-click': 'Åpne lagringsmappen når fullføringsvarselet klikkes',
+  'open-task-list-on-start-notification-click': 'Åpne oppgavelisten når startvarselet klikkes',
   'auto-purge-record': 'Fjern oppføringer ved avslutning',
   ui: 'Grensesnitt',
   'appearance-section': 'Utseende',

@@ -143,6 +143,26 @@ describe('buildDownloadsForm', () => {
     expect(form.taskNotification).toBe(true)
   })
 
+  it('defaults openFolderOnNotificationClick to false', () => {
+    const form = buildDownloadsForm(emptyConfig)
+    expect(form.openFolderOnNotificationClick).toBe(false)
+  })
+
+  it('reads openFolderOnNotificationClick from config when set', () => {
+    const form = buildDownloadsForm({ openFolderOnNotificationClick: true } as unknown as AppConfig)
+    expect(form.openFolderOnNotificationClick).toBe(true)
+  })
+
+  it('defaults openTaskListOnStartNotificationClick to false', () => {
+    const form = buildDownloadsForm(emptyConfig)
+    expect(form.openTaskListOnStartNotificationClick).toBe(false)
+  })
+
+  it('reads openTaskListOnStartNotificationClick from config when set', () => {
+    const form = buildDownloadsForm({ openTaskListOnStartNotificationClick: true } as unknown as AppConfig)
+    expect(form.openTaskListOnStartNotificationClick).toBe(true)
+  })
+
   it('defaults newTaskShowDownloading from DEFAULT_APP_CONFIG', () => {
     const form = buildDownloadsForm(emptyConfig)
     expect(form.newTaskShowDownloading).toBe(DEFAULT_APP_CONFIG.newTaskShowDownloading)
@@ -197,7 +217,7 @@ describe('buildDownloadsForm', () => {
 
   // ── Completeness ────────────────────────────────────────────────
 
-  it('returns all 26 form fields', () => {
+  it('returns all 30 form fields', () => {
     const form = buildDownloadsForm(emptyConfig)
     const expectedFields = [
       'dir',
@@ -222,6 +242,8 @@ describe('buildDownloadsForm', () => {
       'taskNotification',
       'notifyOnStart',
       'notifyOnComplete',
+      'openFolderOnNotificationClick',
+      'openTaskListOnStartNotificationClick',
       'shutdownWhenComplete',
       'keepAwake',
       'deleteTorrentAfterComplete',
@@ -262,6 +284,8 @@ describe('buildDownloadsSystemConfig', () => {
     taskNotification: true,
     notifyOnStart: true,
     notifyOnComplete: true,
+    openFolderOnNotificationClick: false,
+    openTaskListOnStartNotificationClick: false,
     shutdownWhenComplete: false,
     keepAwake: false,
     deleteTorrentAfterComplete: false,
@@ -343,6 +367,8 @@ describe('buildDownloadsSystemConfig', () => {
     expect(config).not.toHaveProperty('taskNotification')
     expect(config).not.toHaveProperty('notifyOnStart')
     expect(config).not.toHaveProperty('notifyOnComplete')
+    expect(config).not.toHaveProperty('openFolderOnNotificationClick')
+    expect(config).not.toHaveProperty('openTaskListOnStartNotificationClick')
     expect(config).not.toHaveProperty('newTaskShowDownloading')
     expect(config).not.toHaveProperty('shutdownWhenComplete')
   })
@@ -388,6 +414,8 @@ describe('transformDownloadsForStore', () => {
     taskNotification: true,
     notifyOnStart: true,
     notifyOnComplete: true,
+    openFolderOnNotificationClick: false,
+    openTaskListOnStartNotificationClick: false,
     shutdownWhenComplete: false,
     keepAwake: false,
     deleteTorrentAfterComplete: false,
@@ -410,6 +438,16 @@ describe('transformDownloadsForStore', () => {
   it('preserves shutdownWhenComplete through transform', () => {
     const result = transformDownloadsForStore({ ...baseForm, shutdownWhenComplete: true })
     expect(result.shutdownWhenComplete).toBe(true)
+  })
+
+  it('preserves openFolderOnNotificationClick through transform', () => {
+    const result = transformDownloadsForStore({ ...baseForm, openFolderOnNotificationClick: true })
+    expect(result.openFolderOnNotificationClick).toBe(true)
+  })
+
+  it('preserves openTaskListOnStartNotificationClick through transform', () => {
+    const result = transformDownloadsForStore({ ...baseForm, openTaskListOnStartNotificationClick: true })
+    expect(result.openTaskListOnStartNotificationClick).toBe(true)
   })
 
   it('preserves maxTries and retryWait through transform', () => {

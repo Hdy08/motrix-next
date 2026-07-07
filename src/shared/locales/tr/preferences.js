@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'Sistem bildirimlerini etkinleştir',
   'notify-on-start': 'İndirme başladığında bildir',
   'notify-on-complete': 'İndirme tamamlandığında bildir',
+  'open-folder-on-notification-click': 'Tamamlanma bildirimine tıklayınca kayıt klasörünü aç',
+  'open-task-list-on-start-notification-click': 'Başlatma bildirimine tıklayınca görev listesini aç',
   'auto-purge-record': 'Çıkışta kayıtları temizle',
   ui: 'Arayüz',
   'appearance-section': 'Görünüm',

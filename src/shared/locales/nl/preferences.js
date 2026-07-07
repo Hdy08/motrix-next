@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'Systeemmeldingen inschakelen',
   'notify-on-start': 'Melding bij start download',
   'notify-on-complete': 'Melding bij voltooide download',
+  'open-folder-on-notification-click': 'Opslagmap openen bij klikken op voltooiingsmelding',
+  'open-task-list-on-start-notification-click': 'Takenlijst openen bij klikken op startmelding',
   'auto-purge-record': 'Records wissen bij afsluiten',
   ui: 'Interface',
   'appearance-section': 'Uiterlijk',

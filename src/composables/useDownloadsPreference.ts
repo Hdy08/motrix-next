@@ -41,6 +41,8 @@ export interface DownloadsForm {
   taskNotification: boolean
   notifyOnStart: boolean
   notifyOnComplete: boolean
+  openFolderOnNotificationClick: boolean
+  openTaskListOnStartNotificationClick: boolean
   shutdownWhenComplete: boolean
   keepAwake: boolean
   deleteTorrentAfterComplete: boolean
@@ -109,6 +111,9 @@ export function buildDownloadsForm(config: AppConfig, defaultDir: string = ''): 
     taskNotification: config.taskNotification ?? D.taskNotification,
     notifyOnStart: config.notifyOnStart ?? D.notifyOnStart,
     notifyOnComplete: config.notifyOnComplete ?? D.notifyOnComplete,
+    openFolderOnNotificationClick: config.openFolderOnNotificationClick ?? D.openFolderOnNotificationClick,
+    openTaskListOnStartNotificationClick:
+      config.openTaskListOnStartNotificationClick ?? D.openTaskListOnStartNotificationClick,
     shutdownWhenComplete: config.shutdownWhenComplete ?? D.shutdownWhenComplete,
     keepAwake: config.keepAwake ?? D.keepAwake,
     deleteTorrentAfterComplete: config.deleteTorrentAfterComplete ?? false,

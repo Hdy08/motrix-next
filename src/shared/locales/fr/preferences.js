@@ -67,6 +67,8 @@ export default {
   'task-completed-notify': 'Activer les notifications système',
   'notify-on-start': 'Notifier au début du téléchargement',
   'notify-on-complete': 'Notifier à la fin du téléchargement',
+  'open-folder-on-notification-click': 'Ouvrir le dossier d’enregistrement au clic sur la notification de fin',
+  'open-task-list-on-start-notification-click': 'Ouvrir la liste des tâches en cliquant sur la notification de démarrage',
   'auto-purge-record': 'Effacer les enregistrements à la fermeture',
   ui: 'Interface',
   'appearance-section': 'Apparence',

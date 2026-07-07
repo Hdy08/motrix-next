@@ -67,6 +67,8 @@ export default {
   'task-completed-notify': 'Ενεργοποίηση ειδοποιήσεων συστήματος',
   'notify-on-start': 'Ειδοποίηση κατά την έναρξη λήψης',
   'notify-on-complete': 'Ειδοποίηση κατά την ολοκλήρωση λήψης',
+  'open-folder-on-notification-click': 'Άνοιγμα φακέλου αποθήκευσης όταν κάνετε κλικ στην ειδοποίηση ολοκλήρωσης',
+  'open-task-list-on-start-notification-click': 'Άνοιγμα λίστας εργασιών με κλικ στην ειδοποίηση έναρξης λήψης',
   'auto-purge-record': 'Εκκαθάριση εγγραφών κατά την έξοδο',
   ui: 'Διεπαφή',
   'appearance-section': 'Εμφάνιση',

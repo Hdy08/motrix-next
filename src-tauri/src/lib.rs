@@ -234,9 +234,18 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(services::http_api::HttpApiState::new());
     #[cfg(target_os = "linux")]
     app.manage(services::notification::LinuxNotificationRegistry::new());
+    #[cfg(target_os = "windows")]
+    app.manage(services::notification::WindowsNotificationRegistry::new());
     app.manage(services::deep_link::PendingDeepLinkState::new());
     app.manage(services::external_input::PendingExternalInputState::new());
     app.manage(services::frontend_action::PendingFrontendActionState::new());
+
+    #[cfg(target_os = "windows")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        let _ =
+            services::deep_link::handle_native_action_args(handle, &args, "startup-native-action");
+    }
 
     // App lifecycle — tracks cold-start vs runtime phase for autostart
     // visibility decisions.  See AppLifecycleState doc and issue #206.
@@ -749,6 +758,14 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if services::deep_link::handle_native_action_args(
+                app,
+                &argv,
+                "single-instance-native-action",
+            ) {
+                return;
+            }
+
             let urls = services::deep_link::filter_external_input_args(&argv);
             if !urls.is_empty() {
                 services::deep_link::route_external_inputs(app, urls, "single-instance");

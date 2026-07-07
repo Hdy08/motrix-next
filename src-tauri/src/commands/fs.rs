@@ -758,9 +758,13 @@ fn to_wide(s: &str) -> Vec<u16> {
 /// (opens in file manager) or a file (opens with default app).
 #[tauri::command]
 pub fn open_path_normalized(app: AppHandle, path: String) -> Result<(), AppError> {
+    open_path_with_app(&app, &path)
+}
+
+pub(crate) fn open_path_with_app(app: &AppHandle, path: &str) -> Result<(), AppError> {
     use tauri_plugin_opener::OpenerExt;
     log::debug!("file:open path={path:?}");
-    let normalized = normalize_path(&path);
+    let normalized = normalize_path(path);
     app.opener()
         .open_path(&normalized, None::<&str>)
         .map_err(|e| AppError::Io(format!("Failed to open {}: {}", path, e)))
@@ -952,12 +956,14 @@ mod tests {
 
     // ── normalize_path ─────────────────────────────────────────────────
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn normalize_path_preserves_simple_unix_path() {
         let result = normalize_path("/home/user/downloads/file.txt");
         assert_eq!(result, "/home/user/downloads/file.txt");
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn normalize_path_preserves_path_with_spaces() {
         let result = normalize_path("/home/user/my downloads/file name.txt");
@@ -1000,11 +1006,19 @@ mod tests {
         assert_eq!(result, "\\\\server\\share\\file.txt");
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn normalize_path_handles_forward_slash_only() {
         // Pure forward-slash paths (cross-platform compatible)
         let result = normalize_path("/var/log/app.log");
         assert_eq!(result, "/var/log/app.log");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn normalize_path_reassembles_forward_slash_absolute_windows() {
+        let result = normalize_path("/var/log/app.log");
+        assert_eq!(result, "\\var\\log\\app.log");
     }
 
     // ── remove_file ─────────────────────────────────────────────────

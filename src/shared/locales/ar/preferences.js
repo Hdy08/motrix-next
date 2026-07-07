@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'تفعيل إشعارات النظام',
   'notify-on-start': 'إشعار عند بدء التنزيل',
   'notify-on-complete': 'إشعار عند اكتمال التنزيل',
+  'open-folder-on-notification-click': 'فتح مجلد الحفظ عند النقر على إشعار الاكتمال',
+  'open-task-list-on-start-notification-click': 'افتح قائمة المهام عند النقر على إشعار بدء التنزيل',
   'auto-purge-record': 'مسح السجلات عند الخروج',
   ui: 'الواجهة',
   'appearance-section': 'المظهر',

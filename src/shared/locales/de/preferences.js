@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'Systembenachrichtigungen aktivieren',
   'notify-on-start': 'Benachrichtigung bei Download-Start',
   'notify-on-complete': 'Benachrichtigung bei Download-Abschluss',
+  'open-folder-on-notification-click': 'Speicherordner beim Klicken auf die Abschlussbenachrichtigung öffnen',
+  'open-task-list-on-start-notification-click': 'Aufgabenliste beim Klicken auf die Startbenachrichtigung öffnen',
   'auto-purge-record': 'Einträge beim Beenden löschen',
   ui: 'Oberfläche',
   'appearance-section': 'Darstellung',

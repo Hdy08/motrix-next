@@ -67,6 +67,8 @@ export default {
   'task-completed-notify': 'Activar notificaciones del sistema',
   'notify-on-start': 'Notificar al iniciar la descarga',
   'notify-on-complete': 'Notificar al completar la descarga',
+  'open-folder-on-notification-click': 'Abrir la carpeta de guardado al hacer clic en la notificación de finalización',
+  'open-task-list-on-start-notification-click': 'Abrir la lista de tareas al hacer clic en la notificación de inicio de descarga',
   'auto-purge-record': 'Borrar registros al salir',
   ui: 'Interfaz',
   'appearance-section': 'Apariencia',

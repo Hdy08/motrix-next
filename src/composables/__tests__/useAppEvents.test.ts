@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 
 const listenMock = vi.fn()
 const invokeMock = vi.fn()
+const routerPushMock = vi.fn()
 const routerBeforeEachMock = vi.fn()
 const dragDropListenerMock = vi.fn()
 const openDialogMock = vi.fn()
@@ -50,7 +51,7 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     beforeEach: (...args: unknown[]) => routerBeforeEachMock(...args),
-    push: vi.fn().mockResolvedValue(undefined),
+    push: (...args: unknown[]) => routerPushMock(...args),
   }),
   useRoute: () => ({
     path: '/task/all',
@@ -179,6 +180,7 @@ describe('useAppEvents', () => {
       return unlisten
     })
     routerBeforeEachMock.mockImplementation(() => vi.fn().mockName('remove-nav-guard'))
+    routerPushMock.mockResolvedValue(undefined)
     dragDropListenerMock.mockImplementation(async () => vi.fn().mockName('unlisten:drag-drop'))
     openDialogMock.mockResolvedValue(null)
     openUrlMock.mockResolvedValue(undefined)
@@ -465,6 +467,33 @@ describe('useAppEvents', () => {
 
     expect(invokeMock).toHaveBeenCalledWith('take_pending_frontend_actions')
     expect(appStore.showAddTaskDialog).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the task list from a pending notification action after listeners are ready', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'take_pending_frontend_actions') {
+        return [{ channel: 'notification-action', action: 'show-task-list' }]
+      }
+      return []
+    })
+    const { deps } = createDeps()
+    const { setupListeners } = mountComposable(deps)
+
+    await setupListeners()
+
+    expect(windowApiMock.show).toHaveBeenCalled()
+    expect(windowApiMock.setFocus).toHaveBeenCalled()
+    expect(routerPushMock).toHaveBeenCalledWith('/task/all')
+  })
+
+  it('opens the task list from a live notification action', async () => {
+    const { deps } = createDeps()
+    const { setupListeners } = mountComposable(deps)
+
+    await setupListeners()
+    await eventCallbacks['notification-action']?.({ payload: 'show-task-list' })
+
+    expect(routerPushMock).toHaveBeenCalledWith('/task/all')
   })
 
   it('continues routing external input when focusing the restored window fails', async () => {

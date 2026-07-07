@@ -66,6 +66,8 @@ export default {
   'task-completed-notify': 'Enable system notifications',
   'notify-on-start': 'Notify on download start',
   'notify-on-complete': 'Notify on download complete',
+  'open-folder-on-notification-click': 'Open save folder when clicking completion notification',
+  'open-task-list-on-start-notification-click': 'Open task list when clicking start notification',
   'auto-purge-record': 'Clear download records on exit',
   ui: 'Interface',
   'appearance-section': 'Appearance',

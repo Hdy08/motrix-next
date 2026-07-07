@@ -40,7 +40,7 @@ interface PendingExternalInputsPayload {
   silent: boolean
 }
 
-type PendingFrontendActionChannel = 'menu-event' | 'tray-menu-action'
+type PendingFrontendActionChannel = 'menu-event' | 'notification-action' | 'tray-menu-action'
 
 interface PendingFrontendAction {
   channel: PendingFrontendActionChannel
@@ -527,6 +527,25 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     }
   }
 
+  async function handleNotificationAction(action: string) {
+    switch (action) {
+      case 'show-task-list':
+        await surfaceMainWindow()
+        router.push('/task/all').catch(() => {
+          /* duplicate navigation */
+        })
+        break
+    }
+  }
+
+  async function setupNotificationActionListener() {
+    return registerCleanup(
+      await listen<string>('notification-action', async (event) => {
+        await handleNotificationAction(event.payload)
+      }),
+    )
+  }
+
   // ─── Drag & drop .torrent files ──────────────────────────────────
   async function setupDragDropListener() {
     const webview = getCurrentWebview()
@@ -766,6 +785,7 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     const { unlistenDeepLink, unlistenExternalInput, unlistenSingleInstance } = await setupExternalInputListeners()
     const unlistenDragDrop = await setupDragDropListener()
     const unlistenMenuEvent = await setupMenuListener()
+    const unlistenNotificationAction = await setupNotificationActionListener()
     const unlistenTrayMenu = await setupTrayListener()
 
     // After all listeners are registered, consume any deep-link URLs
@@ -799,6 +819,8 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
         for (const pendingAction of pendingActions) {
           if (pendingAction.channel === 'menu-event') {
             await handleMenuAction(pendingAction.action)
+          } else if (pendingAction.channel === 'notification-action') {
+            await handleNotificationAction(pendingAction.action)
           } else if (pendingAction.channel === 'tray-menu-action') {
             await handleTrayAction(pendingAction.action)
           }
@@ -811,6 +833,7 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     return {
       unlistenDragDrop,
       unlistenMenuEvent,
+      unlistenNotificationAction,
       unlistenTrayMenu,
       unlistenDeepLink,
       unlistenExternalInput,

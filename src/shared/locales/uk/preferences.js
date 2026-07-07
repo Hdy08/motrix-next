@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'Увімкнути системні сповіщення',
   'notify-on-start': 'Сповіщати при початку завантаження',
   'notify-on-complete': 'Сповіщати при завершенні завантаження',
+  'open-folder-on-notification-click': 'Відкривати папку збереження при натисканні сповіщення про завершення',
+  'open-task-list-on-start-notification-click': 'Відкривати список завдань після натискання сповіщення про початок завантаження',
   'auto-purge-record': 'Очищати записи при виході',
   ui: 'Інтерфейс',
   'appearance-section': 'Вигляд',

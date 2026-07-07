@@ -64,6 +64,12 @@ strip-ansi-escapes = "0.2.1"
 tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7"
+windows = { version = "0.56", features = [
+    "Data_Xml_Dom",
+    "Foundation",
+    "UI_Notifications",
+] }
 windows-sys = { version = "0.59", features = [
     "Win32_Graphics_Dwm",
     "Win32_System_Power",

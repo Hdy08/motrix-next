@@ -66,6 +66,8 @@ export default {
   'task-completed-notify': 'Rendszerértesítések engedélyezése',
   'notify-on-start': 'Értesítés letöltés indításakor',
   'notify-on-complete': 'Értesítés letöltés befejezésekor',
+  'open-folder-on-notification-click': 'Mentési mappa megnyitása a befejezési értesítésre kattintva',
+  'open-task-list-on-start-notification-click': 'Feladatlista megnyitása a letöltés indítási értesítésére kattintva',
   'auto-purge-record': 'Bejegyzések törlése kilépéskor',
   ui: 'Felület',
   'appearance-section': 'Megjelenés',

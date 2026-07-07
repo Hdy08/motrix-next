@@ -82,6 +82,8 @@ const userKeys = [
   'task-page-size',
   'notify-on-start',
   'notify-on-complete',
+  'open-folder-on-notification-click',
+  'open-task-list-on-start-notification-click',
   'task-sort',
   'task-manual-order',
   'temp-files-dir',

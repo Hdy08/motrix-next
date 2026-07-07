@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': '啟用系統通知',
   'notify-on-start': '下載開始時通知',
   'notify-on-complete': '下載完成時通知',
+  'open-folder-on-notification-click': '點擊完成通知時開啟儲存資料夾',
+  'open-task-list-on-start-notification-click': '點擊下載已開始通知後開啟任務列表',
   'auto-purge-record': '結束時自動清除下載記錄',
   ui: '介面',
   'appearance-section': '外觀',

@@ -65,6 +65,8 @@ export default {
   'task-completed-notify': 'Activează notificările de sistem',
   'notify-on-start': 'Notificare la începerea descărcării',
   'notify-on-complete': 'Notificare la finalizarea descărcării',
+  'open-folder-on-notification-click': 'Deschide folderul de salvare la clic pe notificarea de finalizare',
+  'open-task-list-on-start-notification-click': 'Deschide lista de sarcini la clic pe notificarea de pornire',
   'auto-purge-record': 'Curăță înregistrările la ieșire',
   ui: 'Interfață',
   'appearance-section': 'Aspect',

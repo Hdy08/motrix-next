@@ -3,6 +3,10 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
+const MOTRIX_SCHEME: &str = "motrixnext";
+const NOTIFICATION_OPEN_FOLDER_ACTION: &str = "open-folder";
+const NOTIFICATION_SHOW_TASK_LIST_ACTION: &str = "show-task-list";
+
 /// Deep-link URLs waiting for a recreated WebView to finish booting.
 ///
 /// Lightweight mode destroys the main WebView when the user minimizes to tray.
@@ -66,6 +70,80 @@ pub fn filter_external_input_args(args: &[String]) -> Vec<String> {
         })
         .cloned()
         .collect()
+}
+
+/// Handles native app actions that should not be forwarded to the frontend.
+///
+/// Windows notification-center clicks arrive as a protocol activation when the
+/// original in-process toast callback is no longer available. Opening the folder
+/// here keeps that path native and avoids waking the task UI as a download input.
+pub fn handle_native_action_args(app: &AppHandle, args: &[String], source: &'static str) -> bool {
+    let mut handled = false;
+    for arg in args {
+        if let Some(dir) = notification_open_folder_dir_from_url(arg) {
+            handled = true;
+            match crate::commands::fs::open_path_with_app(app, &dir) {
+                Ok(()) => log::info!(
+                    "deep_link:native-action-open-folder source={source} dir={dir:?}"
+                ),
+                Err(error) => log::warn!(
+                    "deep_link:native-action-open-folder-failed source={source} dir={dir:?} error={error}"
+                ),
+            }
+        } else if is_notification_show_task_list_url(arg) {
+            handled = true;
+            crate::services::frontend_action::dispatch_frontend_action(
+                app,
+                crate::services::frontend_action::FrontendActionChannel::NotificationAction,
+                crate::services::frontend_action::FrontendActionKind::ShowTaskList,
+                source,
+            );
+        }
+    }
+    handled
+}
+
+fn notification_open_folder_dir_from_url(value: &str) -> Option<String> {
+    let parsed = url::Url::parse(value).ok()?;
+    if parsed.scheme() != MOTRIX_SCHEME {
+        return None;
+    }
+
+    let action = parsed
+        .host_str()
+        .filter(|host| !host.is_empty())
+        .unwrap_or_else(|| parsed.path().trim_start_matches('/'));
+    if action != NOTIFICATION_OPEN_FOLDER_ACTION {
+        return None;
+    }
+
+    parsed.query_pairs().find_map(|(key, value)| {
+        (key == "dir")
+            .then(|| value.trim().to_string())
+            .filter(|dir| !dir.is_empty())
+    })
+}
+
+fn is_notification_show_task_list_url(value: &str) -> bool {
+    let Some(action) = motrix_action_from_url(value) else {
+        return false;
+    };
+    action == NOTIFICATION_SHOW_TASK_LIST_ACTION
+}
+
+fn motrix_action_from_url(value: &str) -> Option<String> {
+    let parsed = url::Url::parse(value).ok()?;
+    if parsed.scheme() != MOTRIX_SCHEME {
+        return None;
+    }
+
+    Some(
+        parsed
+            .host_str()
+            .filter(|host| !host.is_empty())
+            .unwrap_or_else(|| parsed.path().trim_start_matches('/'))
+            .to_string(),
+    )
 }
 
 /// Returns true when argv belongs to the OS autostart path.
@@ -238,6 +316,7 @@ fn wake_main_window(app: &AppHandle, source: &'static str, silent: bool) {
 mod tests {
     use super::{
         append_unique_pending, filter_external_input_args, is_autostart_arg_launch,
+        is_notification_show_task_list_url, notification_open_folder_dir_from_url,
         take_pending_deep_links, PendingDeepLinkState,
     };
 
@@ -278,6 +357,44 @@ mod tests {
             "MotrixNext.exe".to_string(),
             "--flag".to_string(),
         ]));
+    }
+
+    #[test]
+    fn parses_notification_open_folder_action_url() {
+        assert_eq!(
+            notification_open_folder_dir_from_url("motrixnext://open-folder?dir=C%3A%5CDownloads")
+                .as_deref(),
+            Some("C:\\Downloads")
+        );
+        assert_eq!(
+            notification_open_folder_dir_from_url("motrixnext:/open-folder?dir=D%3A%5CMedia")
+                .as_deref(),
+            Some("D:\\Media")
+        );
+        assert_eq!(
+            notification_open_folder_dir_from_url("motrixnext://open-folder?dir="),
+            None
+        );
+        assert_eq!(
+            notification_open_folder_dir_from_url("motrixnext://new?url=https%3A%2F%2Fexample.com"),
+            None
+        );
+    }
+
+    #[test]
+    fn detects_notification_show_task_list_action_url() {
+        assert!(is_notification_show_task_list_url(
+            "motrixnext://show-task-list"
+        ));
+        assert!(is_notification_show_task_list_url(
+            "motrixnext:/show-task-list"
+        ));
+        assert!(!is_notification_show_task_list_url(
+            "motrixnext://open-folder?dir=C%3A%5CDownloads"
+        ));
+        assert!(!is_notification_show_task_list_url(
+            "https://example.com/show-task-list"
+        ));
     }
 
     #[test]
