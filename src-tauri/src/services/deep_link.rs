@@ -28,6 +28,12 @@ pub struct PendingDeepLinksPayload {
     pub silent: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NotificationOpenTarget {
+    dir: Option<String>,
+    item_path: Option<String>,
+}
+
 impl PendingDeepLinkState {
     pub fn new() -> Self {
         Self(Mutex::new(PendingDeepLinks::default()))
@@ -75,19 +81,28 @@ pub fn filter_external_input_args(args: &[String]) -> Vec<String> {
 /// Handles native app actions that should not be forwarded to the frontend.
 ///
 /// Windows notification-center clicks arrive as a protocol activation when the
-/// original in-process toast callback is no longer available. Opening the folder
-/// here keeps that path native and avoids waking the task UI as a download input.
+/// original in-process toast callback is no longer available. Revealing the
+/// downloaded item here keeps that path native and avoids waking the task UI as
+/// a download input.
 pub fn handle_native_action_args(app: &AppHandle, args: &[String], source: &'static str) -> bool {
     let mut handled = false;
     for arg in args {
-        if let Some(dir) = notification_open_folder_dir_from_url(arg) {
+        if let Some(target) = notification_open_target_from_url(arg) {
             handled = true;
-            match crate::commands::fs::open_path_with_app(app, &dir) {
+            match crate::commands::fs::reveal_item_or_open_dir(
+                app,
+                target.item_path.as_deref(),
+                target.dir.as_deref(),
+            ) {
                 Ok(()) => log::info!(
-                    "deep_link:native-action-open-folder source={source} dir={dir:?}"
+                    "deep_link:native-action-open-target source={source} item={:?} dir={:?}",
+                    target.item_path,
+                    target.dir
                 ),
                 Err(error) => log::warn!(
-                    "deep_link:native-action-open-folder-failed source={source} dir={dir:?} error={error}"
+                    "deep_link:native-action-open-target-failed source={source} item={:?} dir={:?} error={error}",
+                    target.item_path,
+                    target.dir
                 ),
             }
         } else if is_notification_show_task_list_url(arg) {
@@ -103,7 +118,7 @@ pub fn handle_native_action_args(app: &AppHandle, args: &[String], source: &'sta
     handled
 }
 
-fn notification_open_folder_dir_from_url(value: &str) -> Option<String> {
+fn notification_open_target_from_url(value: &str) -> Option<NotificationOpenTarget> {
     let parsed = url::Url::parse(value).ok()?;
     if parsed.scheme() != MOTRIX_SCHEME {
         return None;
@@ -117,11 +132,21 @@ fn notification_open_folder_dir_from_url(value: &str) -> Option<String> {
         return None;
     }
 
-    parsed.query_pairs().find_map(|(key, value)| {
-        (key == "dir")
-            .then(|| value.trim().to_string())
-            .filter(|dir| !dir.is_empty())
-    })
+    let mut dir = None;
+    let mut item_path = None;
+    for (key, value) in parsed.query_pairs() {
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        match key.as_ref() {
+            "dir" => dir = Some(value.to_string()),
+            "path" => item_path = Some(value.to_string()),
+            _ => {}
+        }
+    }
+
+    (dir.is_some() || item_path.is_some()).then_some(NotificationOpenTarget { dir, item_path })
 }
 
 fn is_notification_show_task_list_url(value: &str) -> bool {
@@ -316,8 +341,8 @@ fn wake_main_window(app: &AppHandle, source: &'static str, silent: bool) {
 mod tests {
     use super::{
         append_unique_pending, filter_external_input_args, is_autostart_arg_launch,
-        is_notification_show_task_list_url, notification_open_folder_dir_from_url,
-        take_pending_deep_links, PendingDeepLinkState,
+        is_notification_show_task_list_url, notification_open_target_from_url,
+        take_pending_deep_links, NotificationOpenTarget, PendingDeepLinkState,
     };
 
     #[test]
@@ -362,21 +387,34 @@ mod tests {
     #[test]
     fn parses_notification_open_folder_action_url() {
         assert_eq!(
-            notification_open_folder_dir_from_url("motrixnext://open-folder?dir=C%3A%5CDownloads")
-                .as_deref(),
-            Some("C:\\Downloads")
+            notification_open_target_from_url(
+                "motrixnext://open-folder?dir=C%3A%5CDownloads&path=C%3A%5CDownloads%5Cfile.zip"
+            ),
+            Some(NotificationOpenTarget {
+                dir: Some("C:\\Downloads".to_string()),
+                item_path: Some("C:\\Downloads\\file.zip".to_string()),
+            })
         );
         assert_eq!(
-            notification_open_folder_dir_from_url("motrixnext:/open-folder?dir=D%3A%5CMedia")
-                .as_deref(),
-            Some("D:\\Media")
+            notification_open_target_from_url("motrixnext:/open-folder?dir=D%3A%5CMedia"),
+            Some(NotificationOpenTarget {
+                dir: Some("D:\\Media".to_string()),
+                item_path: None,
+            })
         );
         assert_eq!(
-            notification_open_folder_dir_from_url("motrixnext://open-folder?dir="),
+            notification_open_target_from_url("motrixnext://open-folder?path=D%3A%5CMedia%5Ca.bin"),
+            Some(NotificationOpenTarget {
+                dir: None,
+                item_path: Some("D:\\Media\\a.bin".to_string()),
+            })
+        );
+        assert_eq!(
+            notification_open_target_from_url("motrixnext://open-folder?dir="),
             None
         );
         assert_eq!(
-            notification_open_folder_dir_from_url("motrixnext://new?url=https%3A%2F%2Fexample.com"),
+            notification_open_target_from_url("motrixnext://new?url=https%3A%2F%2Fexample.com"),
             None
         );
     }

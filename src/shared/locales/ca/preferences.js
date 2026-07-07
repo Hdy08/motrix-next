@@ -68,7 +68,7 @@ export default {
   'notify-on-start': 'Notificar en iniciar la descàrrega',
   'notify-on-complete': 'Notificar en completar la descàrrega',
   'open-folder-on-notification-click': 'Obre la carpeta de desada en fer clic a la notificació de finalització',
-  'open-task-list-on-start-notification-click': 'Obre la llista de tasques en fer clic a la notificació d\'inici de baixada',
+  'open-task-list-on-start-notification-click': 'Obre la llista de tasques en fer clic a la notificació d\'inici',
   'auto-purge-record': 'Esborrar registres en sortir',
   ui: 'Interfície',
   'appearance-section': 'Aparença',

@@ -67,7 +67,7 @@ export default {
   'notify-on-start': 'ダウンロード開始時に通知',
   'notify-on-complete': 'ダウンロード完了時に通知',
   'open-folder-on-notification-click': '完了通知をクリックしたときに保存フォルダーを開く',
-  'open-task-list-on-start-notification-click': 'ダウンロード開始通知のクリックでタスクリストを開く',
+  'open-task-list-on-start-notification-click': '開始通知のクリックでタスクリストを開く',
   'auto-purge-record': '終了時にダウンロード記録を自動消去',
   ui: 'インターフェース',
   'appearance-section': '外観',

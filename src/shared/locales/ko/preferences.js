@@ -66,7 +66,7 @@ export default {
   'notify-on-start': '다운로드 시작 시 알림',
   'notify-on-complete': '다운로드 완료 시 알림',
   'open-folder-on-notification-click': '완료 알림을 클릭하면 저장 폴더 열기',
-  'open-task-list-on-start-notification-click': '다운로드 시작 알림을 클릭하면 작업 목록 열기',
+  'open-task-list-on-start-notification-click': '시작 알림을 클릭하면 작업 목록 열기',
   'auto-purge-record': '종료 시 다운로드 기록 자동 삭제',
   ui: '인터페이스',
   'appearance-section': '외관',

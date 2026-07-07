@@ -67,7 +67,7 @@ export default {
   'notify-on-start': 'اعلان هنگام شروع دانلود',
   'notify-on-complete': 'اعلان هنگام اتمام دانلود',
   'open-folder-on-notification-click': 'باز کردن پوشه ذخیره هنگام کلیک روی اعلان تکمیل',
-  'open-task-list-on-start-notification-click': 'باز کردن فهرست وظایف با کلیک روی اعلان شروع دانلود',
+  'open-task-list-on-start-notification-click': 'باز کردن فهرست وظایف با کلیک روی اعلان شروع',
   'auto-purge-record': 'پاک کردن رکوردها هنگام خروج',
   ui: 'رابط کاربری',
   'appearance-section': 'ظاهر',

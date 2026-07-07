@@ -66,7 +66,7 @@ export default {
   'notify-on-start': 'Powiadom przy rozpoczęciu pobierania',
   'notify-on-complete': 'Powiadom przy zakończeniu pobierania',
   'open-folder-on-notification-click': 'Otwórz folder zapisu po kliknięciu powiadomienia o ukończeniu',
-  'open-task-list-on-start-notification-click': 'Otwórz listę zadań po kliknięciu powiadomienia o rozpoczęciu pobierania',
+  'open-task-list-on-start-notification-click': 'Otwórz listę zadań po kliknięciu powiadomienia o rozpoczęciu',
   'auto-purge-record': 'Wyczyść wpisy przy zamykaniu',
   ui: 'Interfejs',
   'appearance-section': 'Wygląd',

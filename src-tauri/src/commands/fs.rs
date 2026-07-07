@@ -677,6 +677,7 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
     unsafe {
         // Initialize COM (required for Shell APIs, idempotent).
         let _ = CoInitializeEx(std::ptr::null(), 0);
+        crate::windows_focus::allow_set_foreground_window_any("reveal-in-explorer");
 
         // Convert parent directory to ITEMIDLIST.
         let parent_pidl = ILCreateFromPathW(parent_wide.as_ptr());
@@ -715,17 +716,23 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
         }
     }
 
+    if !crate::windows_focus::focus_file_manager_window_for_dir(parent, "reveal-in-explorer") {
+        log::warn!("reveal_in_explorer: failed to focus parent={parent:?}");
+    }
+
     Ok(())
 }
 
 /// Fallback: open a directory with `ShellExecuteW("explore")`.
 #[cfg(windows)]
 fn shell_execute_open(dir: &str) -> Result<(), AppError> {
+    use std::path::Path;
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
     let dir_wide = to_wide(dir);
     let verb_wide = to_wide("explore");
+    crate::windows_focus::allow_set_foreground_window_any("shell-execute-open");
 
     let result = unsafe {
         ShellExecuteW(
@@ -741,6 +748,12 @@ fn shell_execute_open(dir: &str) -> Result<(), AppError> {
     if (result as isize) <= 32 {
         Err(AppError::Io(format!("ShellExecuteW failed for {dir:?}")))
     } else {
+        if !crate::windows_focus::focus_file_manager_window_for_dir(
+            Path::new(dir),
+            "shell-execute-open",
+        ) {
+            log::warn!("shell_execute_open: failed to focus dir={dir:?}");
+        }
         Ok(())
     }
 }
@@ -765,9 +778,51 @@ pub(crate) fn open_path_with_app(app: &AppHandle, path: &str) -> Result<(), AppE
     use tauri_plugin_opener::OpenerExt;
     log::debug!("file:open path={path:?}");
     let normalized = normalize_path(path);
-    app.opener()
+    let result = app
+        .opener()
         .open_path(&normalized, None::<&str>)
-        .map_err(|e| AppError::Io(format!("Failed to open {}: {}", path, e)))
+        .map_err(|e| AppError::Io(format!("Failed to open {}: {}", path, e)));
+
+    #[cfg(windows)]
+    if result.is_ok() {
+        let normalized_path = std::path::Path::new(&normalized);
+        if normalized_path.is_dir()
+            && !crate::windows_focus::focus_file_manager_window_for_dir(
+                normalized_path,
+                "open-path",
+            )
+        {
+            log::warn!("file:open failed to focus directory path={normalized:?}");
+        }
+    }
+
+    result
+}
+
+pub(crate) fn reveal_item_or_open_dir(
+    app: &AppHandle,
+    item_path: Option<&str>,
+    fallback_dir: Option<&str>,
+) -> Result<(), AppError> {
+    let item_path = item_path.map(str::trim).filter(|path| !path.is_empty());
+    let fallback_dir = fallback_dir.map(str::trim).filter(|dir| !dir.is_empty());
+
+    if let Some(path) = item_path {
+        match show_item_in_dir(path.to_string()) {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                if fallback_dir.is_none() {
+                    return Err(error);
+                }
+                log::warn!("file:reveal failed path={path:?}, falling back to directory: {error}");
+            }
+        }
+    }
+
+    let Some(dir) = fallback_dir else {
+        return Err(AppError::Io("No file or directory path to open".into()));
+    };
+    open_path_with_app(app, dir)
 }
 
 /// Moves a file to the OS trash / recycle bin.

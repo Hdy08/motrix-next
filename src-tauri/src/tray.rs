@@ -151,6 +151,19 @@ pub fn activate_main_window(app: &AppHandle, source: &'static str) -> WindowActi
     if let Err(e) = window.set_focus() {
         log::warn!("window:activate-focus-failed source={source} error={e}");
     }
+    #[cfg(target_os = "windows")]
+    match window.hwnd() {
+        Ok(hwnd) => {
+            let hwnd = hwnd.0 as windows_sys::Win32::Foundation::HWND;
+            let activated = crate::windows_focus::force_foreground_window(hwnd, source);
+            if !activated {
+                log::warn!("window:activate-windows-foreground-failed source={source}");
+            }
+        }
+        Err(e) => {
+            log::warn!("window:activate-hwnd-failed source={source} error={e}");
+        }
+    }
 
     log::info!("window:activate-done source={source}");
     WindowActivationOutcome::Activated

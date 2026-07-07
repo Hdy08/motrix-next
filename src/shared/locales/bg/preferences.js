@@ -66,7 +66,7 @@ export default {
   'notify-on-start': 'Известие при стартиране на изтеглянето',
   'notify-on-complete': 'Известие при завършване на изтеглянето',
   'open-folder-on-notification-click': 'Отваряне на папката за запис при щракване върху известие за завършване',
-  'open-task-list-on-start-notification-click': 'Отваряне на списъка със задачи при щракване върху известие за започнало изтегляне',
+  'open-task-list-on-start-notification-click': 'Отваряне на списъка със задачи при щракване върху известие за старт',
   'auto-purge-record': 'Изчисти записите при затваряне',
   ui: 'Интерфейс',
   'appearance-section': 'Облик',

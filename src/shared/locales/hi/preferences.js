@@ -66,7 +66,7 @@ export default {
   'notify-on-start': 'Download start पर notify करें',
   'notify-on-complete': 'Download complete पर notify करें',
   'open-folder-on-notification-click': 'पूर्णता सूचना पर क्लिक करने पर सहेजने वाला फ़ोल्डर खोलें',
-  'open-task-list-on-start-notification-click': 'डाउनलोड शुरू होने की notification पर क्लिक करने पर task list खोलें',
+  'open-task-list-on-start-notification-click': 'शुरुआत की सूचना पर क्लिक करने पर कार्य सूची खोलें',
   'auto-purge-record': 'Exit पर download records साफ करें',
   ui: 'इंटरफ़ेस',
   'appearance-section': 'दिखावट',

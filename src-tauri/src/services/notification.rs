@@ -279,12 +279,18 @@ pub enum TaskNotificationKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskNotificationOpenTarget {
+    pub dir: Option<String>,
+    pub item_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskNotificationContent {
     pub kind: TaskNotificationKind,
     pub title: String,
     pub body: String,
     pub locale: &'static str,
-    pub click_open_dir: Option<String>,
+    pub click_open_target: Option<TaskNotificationOpenTarget>,
     pub click_show_task_list: bool,
 }
 
@@ -333,36 +339,92 @@ fn notification_enabled(kind: TaskNotificationKind, config: &RuntimeConfig) -> b
     }
 }
 
-fn click_open_dir_for_event(
+fn click_open_target_for_event(
     kind: TaskNotificationKind,
     event: &TaskEvent,
     config: &RuntimeConfig,
-) -> Option<String> {
+) -> Option<TaskNotificationOpenTarget> {
     if !config.open_folder_on_notification_click {
         return None;
     }
 
     match kind {
         TaskNotificationKind::Complete | TaskNotificationKind::SharingComplete => {
-            let dir = event.dir.trim();
-            (!dir.is_empty()).then(|| dir.to_string())
+            notification_open_target_for_event(event)
         }
         TaskNotificationKind::Start | TaskNotificationKind::Error => None,
     }
 }
 
+fn notification_open_target_for_event(event: &TaskEvent) -> Option<TaskNotificationOpenTarget> {
+    let dir = event_dir_for_notification(event);
+    let item_path = notification_item_path_for_event(event);
+
+    (dir.is_some() || item_path.is_some()).then_some(TaskNotificationOpenTarget { dir, item_path })
+}
+
+fn event_dir_for_notification(event: &TaskEvent) -> Option<String> {
+    let dir = event.dir.trim();
+    (!dir.is_empty()).then(|| dir.to_string())
+}
+
+fn notification_item_path_for_event(event: &TaskEvent) -> Option<String> {
+    event
+        .files
+        .iter()
+        .filter(|file| file.selected.eq_ignore_ascii_case("true"))
+        .find_map(|file| normalized_notification_file_path(event, &file.path))
+        .or_else(|| {
+            event
+                .files
+                .iter()
+                .find_map(|file| normalized_notification_file_path(event, &file.path))
+        })
+}
+
+fn normalized_notification_file_path(event: &TaskEvent, path: &str) -> Option<String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return None;
+    }
+    if looks_like_absolute_path(path) {
+        return Some(path.to_string());
+    }
+
+    let dir = event.dir.trim();
+    if dir.is_empty() {
+        return Some(path.to_string());
+    }
+    Some(
+        std::path::Path::new(dir)
+            .join(path)
+            .to_string_lossy()
+            .to_string(),
+    )
+}
+
+fn looks_like_absolute_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with('/')
+        || path.starts_with('\\')
+        || (bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && (bytes[2] == b'\\' || bytes[2] == b'/'))
+}
+
 #[cfg(target_os = "linux")]
-fn spawn_click_open_dir_handler(
+fn spawn_click_open_target_handler(
     app: tauri::AppHandle,
-    dir: String,
+    target: TaskNotificationOpenTarget,
     handle: notify_rust::NotificationHandle,
 ) {
     let _ = std::thread::spawn(move || {
         handle.wait_for_action(|action| {
             if action == "default" {
-                open_notification_dir(&app, &dir);
+                open_notification_target(&app, &target);
             } else {
-                log::debug!("notification:click-open-dir ignored action={action:?}");
+                log::debug!("notification:click-open-target ignored action={action:?}");
             }
         });
     });
@@ -385,10 +447,22 @@ fn spawn_click_show_task_list_handler(
 }
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
-fn open_notification_dir(app: &tauri::AppHandle, dir: &str) {
-    match crate::commands::fs::open_path_with_app(app, dir) {
-        Ok(()) => log::info!("notification:click-open-dir opened dir={dir:?}"),
-        Err(error) => log::warn!("notification:click-open-dir failed dir={dir:?} error={error}"),
+fn open_notification_target(app: &tauri::AppHandle, target: &TaskNotificationOpenTarget) {
+    match crate::commands::fs::reveal_item_or_open_dir(
+        app,
+        target.item_path.as_deref(),
+        target.dir.as_deref(),
+    ) {
+        Ok(()) => log::info!(
+            "notification:click-open-target opened item={:?} dir={:?}",
+            target.item_path,
+            target.dir
+        ),
+        Err(error) => log::warn!(
+            "notification:click-open-target failed item={:?} dir={:?} error={error}",
+            target.item_path,
+            target.dir
+        ),
     }
 }
 
@@ -458,7 +532,7 @@ pub fn build_task_notification(
         title,
         body,
         locale,
-        click_open_dir: click_open_dir_for_event(kind, event, config),
+        click_open_target: click_open_target_for_event(kind, event, config),
         click_show_task_list: false,
     })
 }
@@ -497,7 +571,7 @@ pub fn build_task_start_notification(
         title: texts.download_start_title.to_string(),
         body,
         locale,
-        click_open_dir: None,
+        click_open_target: None,
         click_show_task_list: config.open_task_list_on_start_notification_click,
     })
 }
@@ -583,7 +657,7 @@ pub fn send_app_notification(
         title: title.to_string(),
         body: body.to_string(),
         locale: "frontend",
-        click_open_dir: None,
+        click_open_target: None,
         click_show_task_list: false,
     };
     send_native_notification(app, &content)
@@ -714,16 +788,16 @@ fn send_platform_notification(
         .summary(&content.title)
         .body(&content.body);
 
-    if content.click_open_dir.is_some() || content.click_show_task_list {
+    if content.click_open_target.is_some() || content.click_show_task_list {
         notification.action("default", "Open");
     }
 
     let handle = notification.show().map_err(|error| error.to_string())?;
     let registry = app.state::<LinuxNotificationRegistry>();
-    let retention = if let Some(dir) = content.click_open_dir.clone() {
+    let retention = if let Some(target) = content.click_open_target.clone() {
         let id = handle.id();
         let retention = registry.observe_unretained(id);
-        spawn_click_open_dir_handler(app.clone(), dir, handle);
+        spawn_click_open_target_handler(app.clone(), target, handle);
         retention
     } else if content.click_show_task_list {
         let id = handle.id();
@@ -748,9 +822,9 @@ fn send_platform_notification(
 ) -> Result<NotificationDispatchResult, String> {
     let dispatch = show_default_platform_notification(app, content)?;
 
-    if content.click_open_dir.is_some() {
+    if content.click_open_target.is_some() {
         log::debug!(
-            "notification:click-open-dir unsupported platform={} type={:?}",
+            "notification:click-open-target unsupported platform={} type={:?}",
             std::env::consts::OS,
             content.kind
         );
@@ -771,7 +845,7 @@ fn send_platform_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<NotificationDispatchResult, String> {
-    if content.click_open_dir.is_none() && !content.click_show_task_list {
+    if content.click_open_target.is_none() && !content.click_show_task_list {
         return show_default_platform_notification(app, content);
     }
 
@@ -808,7 +882,7 @@ fn show_windows_clickable_notification_with_metadata(
     let key = next_windows_notification_key();
     let toast = build_windows_toast_notification(content)?;
     let app_handle = app.clone();
-    let click_open_dir = content.click_open_dir.clone();
+    let click_open_target = content.click_open_target.clone();
     let click_show_task_list = content.click_show_task_list;
 
     if let Some(tag) = tag {
@@ -825,11 +899,11 @@ fn show_windows_clickable_notification_with_metadata(
     let activated_handler =
         TypedEventHandler::<ToastNotification, IInspectable>::new(move |_, args| {
             let action = windows_activation_action(&args);
-            if let Some(dir) = click_open_dir
-                .as_deref()
-                .filter(|_| should_open_dir_for_windows_activation(action.as_deref()))
+            if let Some(target) = click_open_target
+                .as_ref()
+                .filter(|_| should_open_target_for_windows_activation(action.as_deref()))
             {
-                open_notification_dir(&app_handle, dir);
+                open_notification_target(&app_handle, target);
                 if let Some(registry) = app_handle.try_state::<WindowsNotificationRegistry>() {
                     let removed = registry.remove(key);
                     log::debug!(
@@ -989,8 +1063,8 @@ fn build_windows_toast_xml(content: &TaskNotificationContent) -> String {
 
 #[cfg(any(target_os = "windows", test))]
 fn windows_notification_activation_url(content: &TaskNotificationContent) -> Option<String> {
-    if let Some(dir) = content.click_open_dir.as_deref() {
-        Some(windows_open_folder_activation_url(dir))
+    if let Some(target) = content.click_open_target.as_ref() {
+        Some(windows_open_folder_activation_url(target))
     } else {
         content
             .click_show_task_list
@@ -999,9 +1073,17 @@ fn windows_notification_activation_url(content: &TaskNotificationContent) -> Opt
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn windows_open_folder_activation_url(dir: &str) -> String {
+fn windows_open_folder_activation_url(target: &TaskNotificationOpenTarget) -> String {
     let mut url = url::Url::parse("motrixnext://open-folder").expect("static URL must parse");
-    url.query_pairs_mut().append_pair("dir", dir);
+    {
+        let mut query = url.query_pairs_mut();
+        if let Some(dir) = target.dir.as_deref() {
+            query.append_pair("dir", dir);
+        }
+        if let Some(path) = target.item_path.as_deref() {
+            query.append_pair("path", path);
+        }
+    }
     url.to_string()
 }
 
@@ -1089,10 +1171,10 @@ fn windows_notification_app_id(app: &tauri::AppHandle) -> String {
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn should_open_dir_for_windows_activation(action: Option<&str>) -> bool {
+fn should_open_target_for_windows_activation(action: Option<&str>) -> bool {
     match action.map(str::trim).filter(|action| !action.is_empty()) {
         None => true,
-        Some(action) => is_windows_open_folder_activation_url(action),
+        Some(action) => is_windows_open_target_activation_url(action),
     }
 }
 
@@ -1105,7 +1187,7 @@ fn should_show_task_list_for_windows_activation(action: Option<&str>) -> bool {
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn is_windows_open_folder_activation_url(value: &str) -> bool {
+fn is_windows_open_target_activation_url(value: &str) -> bool {
     let Ok(parsed) = url::Url::parse(value) else {
         return false;
     };
@@ -1123,7 +1205,7 @@ fn is_windows_open_folder_activation_url(value: &str) -> bool {
 
     parsed
         .query_pairs()
-        .any(|(key, value)| key == "dir" && !value.trim().is_empty())
+        .any(|(key, value)| matches!(key.as_ref(), "dir" | "path") && !value.trim().is_empty())
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -1172,7 +1254,12 @@ mod tests {
             is_bt: false,
             is_ed2k: false,
             sharing_kind: None,
-            files: Vec::new(),
+            files: vec![crate::services::monitor::TaskEventFile {
+                path: "/tmp/file.zip".to_string(),
+                length: "1".to_string(),
+                selected: "true".to_string(),
+                uris: Vec::new(),
+            }],
             announce_list: Vec::new(),
         }
     }
@@ -1184,18 +1271,24 @@ mod tests {
         assert_eq!(content.title, "Download Complete");
         assert_eq!(content.body, "Saved: file.zip");
         assert_eq!(content.locale, "en-US");
-        assert_eq!(content.click_open_dir, None);
+        assert_eq!(content.click_open_target, None);
     }
 
     #[test]
-    fn complete_notification_includes_click_open_dir_when_enabled() {
+    fn complete_notification_includes_click_open_target_when_enabled() {
         let mut config = cfg();
         config.open_folder_on_notification_click = true;
 
         let content = build_task_notification(events::TASK_COMPLETE, &event(), &config).unwrap();
 
         assert_eq!(content.kind, TaskNotificationKind::Complete);
-        assert_eq!(content.click_open_dir.as_deref(), Some("/tmp"));
+        assert_eq!(
+            content.click_open_target,
+            Some(TaskNotificationOpenTarget {
+                dir: Some("/tmp".to_string()),
+                item_path: Some("/tmp/file.zip".to_string()),
+            })
+        );
     }
 
     #[test]
@@ -1210,7 +1303,7 @@ mod tests {
     }
 
     #[test]
-    fn sharing_complete_notification_includes_click_open_dir_when_enabled() {
+    fn sharing_complete_notification_includes_click_open_target_when_enabled() {
         let mut ev = event();
         ev.is_bt = true;
         ev.sharing_kind = Some("bt");
@@ -1220,7 +1313,13 @@ mod tests {
         let content = build_task_notification(events::SHARING_COMPLETE, &ev, &config).unwrap();
 
         assert_eq!(content.kind, TaskNotificationKind::SharingComplete);
-        assert_eq!(content.click_open_dir.as_deref(), Some("/tmp"));
+        assert_eq!(
+            content.click_open_target,
+            Some(TaskNotificationOpenTarget {
+                dir: Some("/tmp".to_string()),
+                item_path: Some("/tmp/file.zip".to_string()),
+            })
+        );
     }
 
     #[test]
@@ -1258,11 +1357,11 @@ mod tests {
         assert_eq!(content.kind, TaskNotificationKind::Error);
         assert_eq!(content.title, "Download Failed");
         assert_eq!(content.body, "file.zip: Network error");
-        assert_eq!(content.click_open_dir, None);
+        assert_eq!(content.click_open_target, None);
     }
 
     #[test]
-    fn error_notification_ignores_click_open_dir_setting() {
+    fn error_notification_ignores_click_open_target_setting() {
         let mut ev = event();
         ev.error_message = Some("Network error".to_string());
         let mut config = cfg();
@@ -1271,11 +1370,11 @@ mod tests {
         let content = build_task_notification(events::TASK_ERROR, &ev, &config).unwrap();
 
         assert_eq!(content.kind, TaskNotificationKind::Error);
-        assert_eq!(content.click_open_dir, None);
+        assert_eq!(content.click_open_target, None);
     }
 
     #[test]
-    fn complete_notification_ignores_blank_click_open_dir() {
+    fn complete_notification_uses_file_target_when_dir_is_blank() {
         let mut ev = event();
         ev.dir = "  ".to_string();
         let mut config = cfg();
@@ -1284,7 +1383,13 @@ mod tests {
         let content = build_task_notification(events::TASK_COMPLETE, &ev, &config).unwrap();
 
         assert_eq!(content.kind, TaskNotificationKind::Complete);
-        assert_eq!(content.click_open_dir, None);
+        assert_eq!(
+            content.click_open_target,
+            Some(TaskNotificationOpenTarget {
+                dir: None,
+                item_path: Some("/tmp/file.zip".to_string()),
+            })
+        );
     }
 
     #[test]
@@ -1311,7 +1416,7 @@ mod tests {
         assert_eq!(content.title, "Download Started");
         assert_eq!(content.body, "Downloading: file.zip");
         assert_eq!(content.locale, "en-US");
-        assert_eq!(content.click_open_dir, None);
+        assert_eq!(content.click_open_target, None);
         assert!(!content.click_show_task_list);
     }
 
@@ -1356,16 +1461,19 @@ mod tests {
     }
 
     #[test]
-    fn windows_body_activation_opens_dir() {
-        assert!(should_open_dir_for_windows_activation(None));
-        assert!(should_open_dir_for_windows_activation(Some("")));
-        assert!(should_open_dir_for_windows_activation(Some(
+    fn windows_body_activation_opens_target() {
+        assert!(should_open_target_for_windows_activation(None));
+        assert!(should_open_target_for_windows_activation(Some("")));
+        assert!(should_open_target_for_windows_activation(Some(
             "motrixnext://open-folder?dir=C%3A%5CDownloads"
         )));
-        assert!(!should_open_dir_for_windows_activation(Some(
+        assert!(should_open_target_for_windows_activation(Some(
+            "motrixnext://open-folder?path=C%3A%5CDownloads%5Cfile.zip"
+        )));
+        assert!(!should_open_target_for_windows_activation(Some(
             "motrixnext://open-folder?dir="
         )));
-        assert!(!should_open_dir_for_windows_activation(Some("dismiss")));
+        assert!(!should_open_target_for_windows_activation(Some("dismiss")));
     }
 
     #[test]
@@ -1375,14 +1483,19 @@ mod tests {
             title: "A&B <done>".to_string(),
             body: "Saved: \"it's here\"".to_string(),
             locale: "en-US",
-            click_open_dir: Some("C:\\Downloads".to_string()),
+            click_open_target: Some(TaskNotificationOpenTarget {
+                dir: Some("C:\\Downloads".to_string()),
+                item_path: Some("C:\\Downloads\\file.zip".to_string()),
+            }),
             click_show_task_list: false,
         };
 
         let xml = build_windows_toast_xml(&content);
 
         assert!(xml.contains(r#"activationType="protocol""#));
-        assert!(xml.contains(r#"launch="motrixnext://open-folder?dir=C%3A%5CDownloads""#));
+        assert!(xml.contains(
+            r#"launch="motrixnext://open-folder?dir=C%3A%5CDownloads&amp;path=C%3A%5CDownloads%5Cfile.zip""#
+        ));
         assert!(xml.contains("A&amp;B &lt;done&gt;"));
         assert!(xml.contains("Saved: &quot;it&apos;s here&quot;"));
     }
@@ -1394,7 +1507,7 @@ mod tests {
             title: "Download Started".to_string(),
             body: "Downloading: file.zip".to_string(),
             locale: "en-US",
-            click_open_dir: None,
+            click_open_target: None,
             click_show_task_list: true,
         };
 

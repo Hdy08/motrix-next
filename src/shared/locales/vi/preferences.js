@@ -66,7 +66,7 @@ export default {
   'notify-on-start': 'Thông báo khi bắt đầu tải xuống',
   'notify-on-complete': 'Thông báo khi tải xuống hoàn tất',
   'open-folder-on-notification-click': 'Mở thư mục lưu khi nhấp vào thông báo hoàn tất',
-  'open-task-list-on-start-notification-click': 'Mở danh sách tác vụ khi bấm thông báo bắt đầu tải xuống',
+  'open-task-list-on-start-notification-click': 'Mở danh sách tác vụ khi bấm thông báo bắt đầu',
   'auto-purge-record': 'Xóa bản ghi khi thoát',
   ui: 'Giao diện',
   'appearance-section': 'Giao diện',

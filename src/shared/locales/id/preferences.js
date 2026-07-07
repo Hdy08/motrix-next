@@ -66,7 +66,7 @@ export default {
   'notify-on-start': 'Notifikasi saat unduhan dimulai',
   'notify-on-complete': 'Notifikasi saat unduhan selesai',
   'open-folder-on-notification-click': 'Buka folder penyimpanan saat mengeklik notifikasi selesai',
-  'open-task-list-on-start-notification-click': 'Buka daftar tugas saat mengeklik notifikasi mulai unduhan',
+  'open-task-list-on-start-notification-click': 'Buka daftar tugas saat mengeklik notifikasi mulai',
   'auto-purge-record': 'Hapus catatan saat keluar',
   ui: 'Antarmuka',
   'appearance-section': 'Tampilan',

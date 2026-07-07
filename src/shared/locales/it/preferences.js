@@ -68,7 +68,7 @@ export default {
   'notify-on-start': "Notifica all'avvio del download",
   'notify-on-complete': 'Notifica al completamento del download',
   'open-folder-on-notification-click': 'Apri la cartella di salvataggio facendo clic sulla notifica di completamento',
-  'open-task-list-on-start-notification-click': 'Apri l\'elenco attività facendo clic sulla notifica di avvio download',
+  'open-task-list-on-start-notification-click': 'Apri l\'elenco attività facendo clic sulla notifica di avvio',
   'auto-purge-record': "Cancella record all'uscita",
   ui: 'Interfaccia',
   'appearance-section': 'Aspetto',

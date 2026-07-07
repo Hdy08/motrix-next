@@ -66,7 +66,7 @@ export default {
   'notify-on-start': 'แจ้งเตือนเมื่อเริ่มดาวน์โหลด',
   'notify-on-complete': 'แจ้งเตือนเมื่อดาวน์โหลดเสร็จ',
   'open-folder-on-notification-click': 'เปิดโฟลเดอร์บันทึกเมื่อคลิกการแจ้งเตือนเสร็จสิ้น',
-  'open-task-list-on-start-notification-click': 'เปิดรายการงานเมื่อคลิกการแจ้งเตือนเริ่มดาวน์โหลด',
+  'open-task-list-on-start-notification-click': 'เปิดรายการงานเมื่อคลิกการแจ้งเตือนเริ่มต้น',
   'auto-purge-record': 'ล้างรายการเมื่อปิดโปรแกรม',
   ui: 'อินเทอร์เฟซ',
   'appearance-section': 'รูปลักษณ์',
