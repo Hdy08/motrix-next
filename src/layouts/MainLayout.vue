@@ -23,7 +23,7 @@ import { getTaskDisplayName, resolveOpenTarget, checkTaskIsSharing } from '@shar
 import type { TaskSharingKind } from '@shared/utils/task'
 import type { Aria2Task } from '@shared/types'
 import { ARIA2_ERROR_CODES } from '@shared/aria2ErrorCodes'
-import { TASK_STATUS } from '@shared/constants'
+import { DEFAULT_APP_CONFIG, TASK_STATUS } from '@shared/constants'
 import { useHistoryStore } from '@/stores/history'
 import {
   buildSelectFileOption,
@@ -46,6 +46,7 @@ import PreferenceSubnav from '@/components/layout/PreferenceSubnav.vue'
 import Speedometer from '@/components/layout/Speedometer.vue'
 import WindowControls from '@/components/layout/WindowControls.vue'
 import EngineOverlay from '@/components/layout/EngineOverlay.vue'
+import TaskBackgroundLayer from '@/components/layout/TaskBackgroundLayer.vue'
 import AboutPanel from '@/components/about/AboutPanel.vue'
 import AddTask from '@/components/task/AddTask.vue'
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
@@ -53,6 +54,8 @@ import MagnetFileSelect from '@/components/task/MagnetFileSelect.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useTaskBackgroundConfig } from '@/composables/useTaskBackgroundConfig'
+import { opacityPercentToCssPercent, opacityPercentToCssValue } from '@shared/utils/opacity'
 import { NModal, NButton, NCheckbox, NProgress, NPagination, useDialog } from 'naive-ui'
 
 import { useAppEvents } from '@/composables/useAppEvents'
@@ -74,6 +77,8 @@ const message = useAppMessage()
 
 const isTaskPage = computed(() => route.path.startsWith('/task'))
 const isPreferencePage = computed(() => route.path.startsWith('/preference'))
+const taskBackground = useTaskBackgroundConfig()
+const showTaskBackgroundUnderlay = computed(() => isTaskPage.value && taskBackground.isTaskBackgroundConfigured.value)
 const showAbout = ref(false)
 const showExitDialog = ref(false)
 const isExiting = ref(false)
@@ -90,6 +95,17 @@ const taskPaginationPageSize = computed(() => taskStore.taskPagination.pageSize)
 const taskPaginationPageCount = computed(() => taskStore.currentTaskPageCount())
 const taskPaginationPageSizes = [5, 20, 40, 80, 100]
 const showTaskPaginationControl = ref(isTaskPage.value)
+const showSpeedLimitButton = computed(() => !!preferenceStore.config.speedLimitButtonVisible)
+const taskPaginationControlStyle = computed(() => ({
+  '--task-pagination-control-opacity': opacityPercentToCssValue(
+    preferenceStore.config.taskPaginationOpacity,
+    DEFAULT_APP_CONFIG.taskPaginationOpacity,
+  ),
+  '--task-pagination-control-opacity-percent': opacityPercentToCssPercent(
+    preferenceStore.config.taskPaginationOpacity,
+    DEFAULT_APP_CONFIG.taskPaginationOpacity,
+  ),
+}))
 
 watch(
   () => route.path,
@@ -955,7 +971,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div id="container" :class="{ 'native-frame': isMac }">
+  <div id="container" :class="{ 'native-frame': isMac, 'task-background-active': showTaskBackgroundUnderlay }">
     <!-- Minimal progress bar during engine initialization / restart -->
     <Transition name="engine-slide">
       <div v-if="appStore.engineRestarting" class="engine-banner">
@@ -963,6 +979,7 @@ onUnmounted(() => {
       </div>
     </Transition>
     <AsideBar @show-about="showAbout = true" />
+    <TaskBackgroundLayer :show="isTaskPage" />
     <div class="subnav-slot">
       <Transition name="fade" mode="out-in">
         <TaskSubnav v-if="isTaskPage" key="task-subnav" />
@@ -970,11 +987,13 @@ onUnmounted(() => {
       </Transition>
     </div>
     <main class="content">
-      <router-view v-slot="{ Component, route: viewRoute }">
-        <Transition name="fade" mode="out-in" appear @before-enter="handleMainContentBeforeEnter">
-          <component :is="Component" :key="viewRoute.path" />
-        </Transition>
-      </router-view>
+      <div class="content-route">
+        <router-view v-slot="{ Component, route: viewRoute }">
+          <Transition name="fade" mode="out-in" appear @before-enter="handleMainContentBeforeEnter">
+            <component :is="Component" :key="viewRoute.path" />
+          </Transition>
+        </router-view>
+      </div>
     </main>
     <WindowControls
       class="window-controls"
@@ -983,9 +1002,9 @@ onUnmounted(() => {
       @close="showExitDialog = true"
       @maximize-toggled="onMaximizeToggled"
     />
-    <Speedometer />
+    <Speedometer v-if="showSpeedLimitButton" />
     <Transition name="bottom-accessory">
-      <div v-if="showTaskPaginationControl" class="task-pagination-control">
+      <div v-if="showTaskPaginationControl" class="task-pagination-control" :style="taskPaginationControlStyle">
         <NPagination
           :page="taskPaginationPage"
           :page-size="taskPaginationPageSize"
@@ -1083,16 +1102,33 @@ onUnmounted(() => {
   overflow: hidden;
 }
 .subnav-slot {
+  position: relative;
+  z-index: 1;
   width: var(--subnav-width);
   flex-shrink: 0;
   background-color: var(--subnav-bg);
   transition: width 0.25s cubic-bezier(0.2, 0, 0, 1);
 }
 .content {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  overflow: hidden;
   background-color: var(--main-bg);
+}
+.task-background-active .subnav-slot,
+.task-background-active .content,
+.task-background-active :deep(.aside),
+.task-background-active .subnav-slot :deep(.subnav) {
+  background-color: transparent;
+}
+.content-route {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 .window-controls {
   z-index: 100;
@@ -1107,11 +1143,23 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  border: 1px solid var(--m3-outline-variant);
+  border: 1px solid
+    color-mix(in srgb, var(--m3-outline-variant) var(--task-pagination-control-opacity-percent), transparent);
   border-radius: 12px;
-  background: var(--m3-surface-container);
+  background: color-mix(
+    in srgb,
+    var(--m3-surface-container) var(--task-pagination-control-opacity-percent),
+    transparent
+  );
   max-width: calc(100vw - var(--aside-width) - var(--subnav-width) - 280px);
   overflow: hidden;
+}
+.task-pagination-control :deep(.n-pagination-item),
+.task-pagination-control :deep(.n-pagination-item-ellipsis),
+.task-pagination-control :deep(.n-base-selection),
+.task-pagination-control :deep(.n-pagination-prefix),
+.task-pagination-control :deep(.n-pagination-suffix) {
+  opacity: 1;
 }
 .bottom-accessory-enter-active {
   transition:

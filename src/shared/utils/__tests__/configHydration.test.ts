@@ -164,6 +164,32 @@ describe('hydrateAppConfig', () => {
     expect(invalid.repairs).toEqual(expect.arrayContaining(['backgroundImagePath', 'backgroundOpacity']))
   })
 
+  it('repairs invalid task card, pagination, and speed limit button appearance settings', () => {
+    const result = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      taskCardOpacity: 200,
+      taskListSelectedBackgroundOpacity: 'bad' as unknown as number,
+      taskPaginationOpacity: -10,
+      speedLimitButtonVisible: 'yes' as unknown as boolean,
+      speedLimitButtonOpacity: 120,
+    } as Partial<AppConfig>)
+
+    expect(result.config.taskCardOpacity).toBe(100)
+    expect(result.config.taskListSelectedBackgroundOpacity).toBe(DEFAULT_APP_CONFIG.taskListSelectedBackgroundOpacity)
+    expect(result.config.taskPaginationOpacity).toBe(0)
+    expect(result.config.speedLimitButtonVisible).toBe(DEFAULT_APP_CONFIG.speedLimitButtonVisible)
+    expect(result.config.speedLimitButtonOpacity).toBe(100)
+    expect(result.repairs).toEqual(
+      expect.arrayContaining([
+        'taskCardOpacity',
+        'taskListSelectedBackgroundOpacity',
+        'taskPaginationOpacity',
+        'speedLimitButtonVisible',
+        'speedLimitButtonOpacity',
+      ]),
+    )
+  })
+
   it('accepts aria2 notice logs without allowing notice for Motrix logs', () => {
     const result = hydrateAppConfig({
       configVersion: CONFIG_VERSION,

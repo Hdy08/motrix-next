@@ -238,14 +238,18 @@ function onRelease(ev: PointerEvent) {
   direction: rtl;
   border: 1px solid var(--m3-surface-container-highest);
   color: var(--m3-outline);
-  background-color: var(--task-action-bg);
+  background-color: color-mix(in srgb, var(--task-action-bg) var(--task-card-opacity-percent, 100%), transparent);
   border-radius: 18px;
   transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
   list-style: none;
 }
 .task-item-actions:hover {
   border-color: var(--m3-outline);
-  background-color: var(--m3-surface-container-high);
+  background-color: color-mix(
+    in srgb,
+    var(--m3-surface-container-high) var(--task-card-opacity-percent, 100%),
+    transparent
+  );
   width: auto;
 }
 .task-item-action {

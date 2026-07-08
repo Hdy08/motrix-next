@@ -332,6 +332,8 @@ export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.flatMap((group) =>
 
 export const BACKGROUND_OPACITY_MIN = 0
 export const BACKGROUND_OPACITY_MAX = 100
+export const UI_CONTROL_OPACITY_MIN = 0
+export const UI_CONTROL_OPACITY_MAX = 100
 
 export const DEFAULT_APP_CONFIG = {
   configVersion: 5,
@@ -341,9 +343,14 @@ export const DEFAULT_APP_CONFIG = {
   colorScheme: 'amber',
   customColorScheme: DEFAULT_CUSTOM_COLOR_SCHEME,
   taskCardMode: 'full' as const,
+  taskCardOpacity: 100,
+  taskListSelectedBackgroundOpacity: 100,
   taskListWatermark: true,
   backgroundImagePath: '',
   backgroundOpacity: 35,
+  taskPaginationOpacity: 100,
+  speedLimitButtonVisible: true,
+  speedLimitButtonOpacity: 100,
   sidebarTaskCounts: true,
   taskPageSize: 20,
   locale: 'auto',

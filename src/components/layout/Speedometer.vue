@@ -12,7 +12,7 @@
  *   Left-click  — toggle speed limit on/off (toast hint if unconfigured)
  *   Right-click — open speed limit configuration popover
  */
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { usePreferenceStore } from '@/stores/preference'
@@ -35,6 +35,8 @@ import {
 } from '@/composables/useSpeedLimiter'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { logger } from '@shared/logger'
+import { DEFAULT_APP_CONFIG } from '@shared/constants'
+import { opacityPercentToCssValue } from '@shared/utils/opacity'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -71,7 +73,16 @@ let resizeObserver: ResizeObserver | null = null
 
 const SHRINK_DELAY_MS = 1000
 
-const capsuleStyle = computed(() => (capsuleWidth.value > 0 ? { width: `${capsuleWidth.value}px` } : undefined))
+const speedLimitButtonOpacity = computed(() =>
+  opacityPercentToCssValue(preferenceStore.config.speedLimitButtonOpacity, DEFAULT_APP_CONFIG.speedLimitButtonOpacity),
+)
+const capsuleStyle = computed<CSSProperties>(() => {
+  const style: CSSProperties = {
+    '--speedometer-opacity': speedLimitButtonOpacity.value,
+  }
+  if (capsuleWidth.value > 0) style.width = `${capsuleWidth.value}px`
+  return style
+})
 
 function cancelShrink() {
   if (shrinkTimer !== null) {
@@ -360,9 +371,11 @@ async function handleScheduleToggle(enabled: boolean) {
   transition:
     width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     border-color 0.2s ease,
+    opacity 0.2s ease,
     background 0.2s ease;
   border: 1px solid var(--m3-outline-variant);
   background: var(--m3-surface-container);
+  opacity: var(--speedometer-opacity);
   overflow: visible;
 }
 .speedometer:hover {

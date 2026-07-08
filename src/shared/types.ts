@@ -265,9 +265,14 @@ export interface AppConfig {
   colorScheme: string
   customColorScheme: string
   taskCardMode: 'full' | 'compact'
+  taskCardOpacity: number
+  taskListSelectedBackgroundOpacity: number
   taskListWatermark: boolean
   backgroundImagePath: string
   backgroundOpacity: number
+  taskPaginationOpacity: number
+  speedLimitButtonVisible: boolean
+  speedLimitButtonOpacity: number
   sidebarTaskCounts: boolean
   taskPageSize: number
   locale: string

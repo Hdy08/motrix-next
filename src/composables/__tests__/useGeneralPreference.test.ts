@@ -75,6 +75,16 @@ describe('buildGeneralForm', () => {
     expect(form.taskCardMode).toBe(DEFAULT_APP_CONFIG.taskCardMode)
   })
 
+  it('defaults taskCardOpacity from DEFAULT_APP_CONFIG', () => {
+    const form = buildGeneralForm(emptyConfig)
+    expect(form.taskCardOpacity).toBe(DEFAULT_APP_CONFIG.taskCardOpacity)
+  })
+
+  it('defaults taskListSelectedBackgroundOpacity from DEFAULT_APP_CONFIG', () => {
+    const form = buildGeneralForm(emptyConfig)
+    expect(form.taskListSelectedBackgroundOpacity).toBe(DEFAULT_APP_CONFIG.taskListSelectedBackgroundOpacity)
+  })
+
   it('defaults taskListWatermark from DEFAULT_APP_CONFIG', () => {
     const form = buildGeneralForm(emptyConfig)
     expect(form.taskListWatermark).toBe(DEFAULT_APP_CONFIG.taskListWatermark)
@@ -90,9 +100,26 @@ describe('buildGeneralForm', () => {
     expect(form.backgroundOpacity).toBe(DEFAULT_APP_CONFIG.backgroundOpacity)
   })
 
+  it('defaults task pagination and speed limit button appearance from DEFAULT_APP_CONFIG', () => {
+    const form = buildGeneralForm(emptyConfig)
+    expect(form.taskPaginationOpacity).toBe(DEFAULT_APP_CONFIG.taskPaginationOpacity)
+    expect(form.speedLimitButtonVisible).toBe(DEFAULT_APP_CONFIG.speedLimitButtonVisible)
+    expect(form.speedLimitButtonOpacity).toBe(DEFAULT_APP_CONFIG.speedLimitButtonOpacity)
+  })
+
   it('reads taskCardMode from config', () => {
     const form = buildGeneralForm({ taskCardMode: 'compact' } as AppConfig)
     expect(form.taskCardMode).toBe('compact')
+  })
+
+  it('reads taskCardOpacity from config', () => {
+    const form = buildGeneralForm({ taskCardOpacity: 68 } as AppConfig)
+    expect(form.taskCardOpacity).toBe(68)
+  })
+
+  it('reads taskListSelectedBackgroundOpacity from config', () => {
+    const form = buildGeneralForm({ taskListSelectedBackgroundOpacity: 58 } as AppConfig)
+    expect(form.taskListSelectedBackgroundOpacity).toBe(58)
   })
 
   it('reads taskListWatermark from config', () => {
@@ -110,9 +137,25 @@ describe('buildGeneralForm', () => {
     expect(form.backgroundOpacity).toBe(72)
   })
 
+  it('reads task pagination and speed limit button appearance from config', () => {
+    const form = buildGeneralForm({
+      taskPaginationOpacity: 64,
+      speedLimitButtonVisible: false,
+      speedLimitButtonOpacity: 42,
+    } as AppConfig)
+    expect(form.taskPaginationOpacity).toBe(64)
+    expect(form.speedLimitButtonVisible).toBe(false)
+    expect(form.speedLimitButtonOpacity).toBe(42)
+  })
+
   it('persists background image settings as user config keys', () => {
     expect(userKeys).toContain('background-image-path')
     expect(userKeys).toContain('background-opacity')
+    expect(userKeys).toContain('task-card-opacity')
+    expect(userKeys).toContain('task-list-selected-background-opacity')
+    expect(userKeys).toContain('task-pagination-opacity')
+    expect(userKeys).toContain('speed-limit-button-visible')
+    expect(userKeys).toContain('speed-limit-button-opacity')
   })
 
   it('reads showProgressBar from config', () => {
@@ -252,7 +295,7 @@ describe('buildGeneralForm', () => {
 
   // ── Completeness: all fields are present ─────────────────────────
 
-  it('returns all 22 form fields', () => {
+  it('returns all 27 form fields', () => {
     const form = buildGeneralForm(emptyConfig)
     const keys = Object.keys(form)
     expect(keys).toContain('locale')
@@ -260,9 +303,14 @@ describe('buildGeneralForm', () => {
     expect(keys).toContain('colorScheme')
     expect(keys).toContain('customColorScheme')
     expect(keys).toContain('taskCardMode')
+    expect(keys).toContain('taskCardOpacity')
+    expect(keys).toContain('taskListSelectedBackgroundOpacity')
     expect(keys).toContain('taskListWatermark')
     expect(keys).toContain('backgroundImagePath')
     expect(keys).toContain('backgroundOpacity')
+    expect(keys).toContain('taskPaginationOpacity')
+    expect(keys).toContain('speedLimitButtonVisible')
+    expect(keys).toContain('speedLimitButtonOpacity')
     expect(keys).toContain('sidebarTaskCounts')
     expect(keys).toContain('autoCheckUpdate')
     expect(keys).toContain('autoCheckUpdateInterval')
@@ -277,7 +325,7 @@ describe('buildGeneralForm', () => {
     expect(keys).toContain('hideDockOnMinimize')
     expect(keys).toContain('traySpeedometer')
     expect(keys).toContain('lightweightMode')
-    expect(keys).toHaveLength(22)
+    expect(keys).toHaveLength(27)
   })
 })
 
@@ -290,9 +338,14 @@ describe('buildGeneralSystemConfig', () => {
     colorScheme: 'amber',
     customColorScheme: '#737373',
     taskCardMode: 'full',
+    taskCardOpacity: 100,
+    taskListSelectedBackgroundOpacity: 100,
     taskListWatermark: true,
     backgroundImagePath: '',
     backgroundOpacity: 35,
+    taskPaginationOpacity: 100,
+    speedLimitButtonVisible: true,
+    speedLimitButtonOpacity: 100,
     sidebarTaskCounts: true,
     autoCheckUpdate: true,
     autoCheckUpdateInterval: 0,
@@ -337,9 +390,14 @@ describe('transformGeneralForStore', () => {
     colorScheme: 'amber',
     customColorScheme: '#737373',
     taskCardMode: 'full',
+    taskCardOpacity: 100,
+    taskListSelectedBackgroundOpacity: 100,
     taskListWatermark: true,
     backgroundImagePath: '',
     backgroundOpacity: 35,
+    taskPaginationOpacity: 100,
+    speedLimitButtonVisible: true,
+    speedLimitButtonOpacity: 100,
     sidebarTaskCounts: true,
     autoCheckUpdate: true,
     autoCheckUpdateInterval: 0,
@@ -363,9 +421,14 @@ describe('transformGeneralForStore', () => {
     expect(result.colorScheme).toBe('amber')
     expect(result.customColorScheme).toBe('#737373')
     expect(result.taskCardMode).toBe('full')
+    expect(result.taskCardOpacity).toBe(100)
+    expect(result.taskListSelectedBackgroundOpacity).toBe(100)
     expect(result.taskListWatermark).toBe(true)
     expect(result.backgroundImagePath).toBe('')
     expect(result.backgroundOpacity).toBe(35)
+    expect(result.taskPaginationOpacity).toBe(100)
+    expect(result.speedLimitButtonVisible).toBe(true)
+    expect(result.speedLimitButtonOpacity).toBe(100)
     expect(result.sidebarTaskCounts).toBe(true)
     expect(result.autoCheckUpdate).toBe(true)
     expect(result.autoCheckUpdateInterval).toBe(0)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Shared adaptive secondary navigation pane. */
+import { computed } from 'vue'
 import { NIcon } from 'naive-ui'
 import type { Component } from 'vue'
 import SubnavCount from '@/components/layout/SubnavCount.vue'
@@ -14,18 +15,23 @@ export interface SubnavPaneItem {
   ariaLabel?: string
 }
 
-defineProps<{
+const props = defineProps<{
   title: string
   items: SubnavPaneItem[]
+  activeBackgroundOpacity?: string
 }>()
 
 defineEmits<{
   navigate: [route: string]
 }>()
+
+const paneStyle = computed<Record<string, string> | undefined>(() =>
+  props.activeBackgroundOpacity ? { '--subnav-active-bg-opacity': props.activeBackgroundOpacity } : undefined,
+)
 </script>
 
 <template>
-  <aside class="subnav" data-tauri-drag-region>
+  <aside class="subnav" :style="paneStyle" data-tauri-drag-region>
     <nav class="subnav-inner" data-tauri-drag-region>
       <h3>{{ title }}</h3>
       <ul>
@@ -114,7 +120,7 @@ defineEmits<{
 .subnav-button:hover,
 .subnav-button.active,
 .subnav-button:focus-visible {
-  background-color: var(--subnav-active-bg);
+  background-color: color-mix(in srgb, var(--subnav-active-bg) var(--subnav-active-bg-opacity, 100%), transparent);
   outline: none;
 }
 

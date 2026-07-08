@@ -8,6 +8,8 @@ import {
   UPDATE_CHANNELS,
   BACKGROUND_OPACITY_MIN,
   BACKGROUND_OPACITY_MAX,
+  UI_CONTROL_OPACITY_MIN,
+  UI_CONTROL_OPACITY_MAX,
 } from '@shared/constants'
 import { getAllowedColorSchemeIds, normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { runMigrations, type MigrationResult } from '@shared/utils/configMigration'
@@ -130,6 +132,12 @@ function normalizeOptionalString(value: unknown, fallback: string, key: string, 
   return trimmed
 }
 
+function normalizeBoolean(value: unknown, fallback: boolean, key: string, repairs: string[]): boolean {
+  if (typeof value === 'boolean') return value
+  repairs.push(key)
+  return fallback
+}
+
 function normalizeProxy(value: unknown, repairs: string[]): ProxyConfig {
   const defaults = clonePlain(DEFAULT_APP_CONFIG.proxy)
   const saved = isRecord(value) ? value : {}
@@ -220,6 +228,22 @@ function normalizeTaskManualOrder(value: unknown, repairs: string[]): TaskManual
 function normalizeScalarValues(config: Record<string, unknown>, repairs: string[]): void {
   repairEnum(config, 'theme', ['auto', 'light', 'dark'] as const, DEFAULT_APP_CONFIG.theme, repairs)
   repairEnum(config, 'taskCardMode', ['full', 'compact'] as const, DEFAULT_APP_CONFIG.taskCardMode, repairs)
+  config.taskCardOpacity = normalizeClampedInteger(
+    config.taskCardOpacity,
+    DEFAULT_APP_CONFIG.taskCardOpacity,
+    UI_CONTROL_OPACITY_MIN,
+    UI_CONTROL_OPACITY_MAX,
+    'taskCardOpacity',
+    repairs,
+  )
+  config.taskListSelectedBackgroundOpacity = normalizeClampedInteger(
+    config.taskListSelectedBackgroundOpacity,
+    DEFAULT_APP_CONFIG.taskListSelectedBackgroundOpacity,
+    UI_CONTROL_OPACITY_MIN,
+    UI_CONTROL_OPACITY_MAX,
+    'taskListSelectedBackgroundOpacity',
+    repairs,
+  )
   repairEnum(config, 'colorScheme', getAllowedColorSchemeIds(), DEFAULT_APP_CONFIG.colorScheme, repairs)
   const customColorScheme = normalizeCustomColorScheme(config.customColorScheme)
   if (config.customColorScheme !== customColorScheme) repairs.push('customColorScheme')
@@ -236,6 +260,28 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
     BACKGROUND_OPACITY_MIN,
     BACKGROUND_OPACITY_MAX,
     'backgroundOpacity',
+    repairs,
+  )
+  config.taskPaginationOpacity = normalizeClampedInteger(
+    config.taskPaginationOpacity,
+    DEFAULT_APP_CONFIG.taskPaginationOpacity,
+    UI_CONTROL_OPACITY_MIN,
+    UI_CONTROL_OPACITY_MAX,
+    'taskPaginationOpacity',
+    repairs,
+  )
+  config.speedLimitButtonVisible = normalizeBoolean(
+    config.speedLimitButtonVisible,
+    DEFAULT_APP_CONFIG.speedLimitButtonVisible,
+    'speedLimitButtonVisible',
+    repairs,
+  )
+  config.speedLimitButtonOpacity = normalizeClampedInteger(
+    config.speedLimitButtonOpacity,
+    DEFAULT_APP_CONFIG.speedLimitButtonOpacity,
+    UI_CONTROL_OPACITY_MIN,
+    UI_CONTROL_OPACITY_MAX,
+    'speedLimitButtonOpacity',
     repairs,
   )
   repairEnum(config, 'updateChannel', UPDATE_CHANNELS, DEFAULT_APP_CONFIG.updateChannel, repairs)

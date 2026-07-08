@@ -17,9 +17,14 @@ export interface GeneralForm {
   colorScheme: string
   customColorScheme: string
   taskCardMode: AppConfig['taskCardMode']
+  taskCardOpacity: number
+  taskListSelectedBackgroundOpacity: number
   taskListWatermark: boolean
   backgroundImagePath: string
   backgroundOpacity: number
+  taskPaginationOpacity: number
+  speedLimitButtonVisible: boolean
+  speedLimitButtonOpacity: number
   sidebarTaskCounts: boolean
   autoCheckUpdate: boolean
   autoCheckUpdateInterval: number
@@ -49,9 +54,14 @@ export function buildGeneralForm(config: AppConfig): GeneralForm {
     colorScheme: config.colorScheme ?? D.colorScheme,
     customColorScheme: config.customColorScheme ?? D.customColorScheme,
     taskCardMode: config.taskCardMode ?? D.taskCardMode,
+    taskCardOpacity: config.taskCardOpacity ?? D.taskCardOpacity,
+    taskListSelectedBackgroundOpacity: config.taskListSelectedBackgroundOpacity ?? D.taskListSelectedBackgroundOpacity,
     taskListWatermark: config.taskListWatermark ?? D.taskListWatermark,
     backgroundImagePath: config.backgroundImagePath ?? D.backgroundImagePath,
     backgroundOpacity: config.backgroundOpacity ?? D.backgroundOpacity,
+    taskPaginationOpacity: config.taskPaginationOpacity ?? D.taskPaginationOpacity,
+    speedLimitButtonVisible: config.speedLimitButtonVisible ?? D.speedLimitButtonVisible,
+    speedLimitButtonOpacity: config.speedLimitButtonOpacity ?? D.speedLimitButtonOpacity,
     sidebarTaskCounts: config.sidebarTaskCounts ?? D.sidebarTaskCounts,
     autoCheckUpdate: config.autoCheckUpdate ?? D.autoCheckUpdate,
     autoCheckUpdateInterval: config.autoCheckUpdateInterval ?? D.autoCheckUpdateInterval,

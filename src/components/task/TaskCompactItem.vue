@@ -208,17 +208,29 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   min-height: 42px;
-  background-color: var(--task-item-bg);
+  isolation: isolate;
+  background-color: transparent;
   border: 1px solid var(--m3-outline-variant);
   border-left: 3px solid var(--m3-outline-variant);
   border-radius: 6px;
   overflow: hidden;
   transition: border-color 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
+.task-compact-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--task-item-bg);
+  opacity: var(--task-card-opacity, 1);
+  pointer-events: none;
+}
 .task-compact-item::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 1;
   border-radius: inherit;
   background: linear-gradient(90deg, color-mix(in srgb, var(--m3-success) 6%, transparent) 0%, transparent 40%);
   opacity: 0;
@@ -240,9 +252,13 @@ onBeforeUnmount(() => {
   opacity: 0.64;
 }
 .compact-drag-rail {
+  position: relative;
+  z-index: 2;
   grid-row: 1;
 }
 .compact-body {
+  position: relative;
+  z-index: 2;
   min-width: 0;
   padding: 8px 12px;
 }

@@ -5,21 +5,16 @@ import { useI18n } from 'vue-i18n'
 import { useTaskStore } from '@/stores/task'
 import { useAppStore } from '@/stores/app'
 import { usePreferenceStore } from '@/stores/preference'
-import { useTheme } from '@/composables/useTheme'
-import { useLocalImageObjectUrl } from '@/composables/useLocalImageObjectUrl'
 
 import { isEngineReady } from '@/api/aria2'
 import { useTaskActions } from '@/composables/useTaskActions'
 
 import { logger } from '@shared/logger'
-import { BACKGROUND_OPACITY_MAX, BACKGROUND_OPACITY_MIN, DEFAULT_APP_CONFIG } from '@shared/constants'
 import { useDialog } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
 import TaskList from '@/components/task/TaskList.vue'
 import TaskActions from '@/components/task/TaskActions.vue'
 import TaskDetail from '@/components/task/TaskDetail.vue'
-import watermarkDark from '@/assets/logo-bolt-dark.png'
-import watermarkLight from '@/assets/logo-bolt-light.png'
 
 const props = withDefaults(defineProps<{ status?: string }>(), { status: 'active' })
 
@@ -29,25 +24,6 @@ const appStore = useAppStore()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
 const message = useAppMessage()
-const { isDark } = useTheme()
-const watermarkSrc = computed(() => (isDark.value ? watermarkLight : watermarkDark))
-const customBackgroundImagePath = computed(() => (preferenceStore.config.backgroundImagePath ?? '').trim())
-const backgroundOpacity = computed(() => {
-  const opacity = Number(preferenceStore.config.backgroundOpacity)
-  const percent = Number.isFinite(opacity) ? opacity : DEFAULT_APP_CONFIG.backgroundOpacity
-  return Math.min(BACKGROUND_OPACITY_MAX, Math.max(BACKGROUND_OPACITY_MIN, percent)) / 100
-})
-const customBackgroundImageUrl = useLocalImageObjectUrl(customBackgroundImagePath)
-const hasCustomBackgroundImagePath = computed(() => customBackgroundImagePath.value.length > 0)
-const showCustomBackgroundImage = computed(() => customBackgroundImageUrl.value.length > 0)
-const showDefaultBackgroundIcon = computed(
-  () => preferenceStore.config.taskListWatermark && !hasCustomBackgroundImagePath.value,
-)
-const showTaskBackground = computed(() => showCustomBackgroundImage.value || showDefaultBackgroundIcon.value)
-const backgroundLayerStyle = computed(() => ({ opacity: String(backgroundOpacity.value) }))
-const customBackgroundImageStyle = computed(() => ({
-  backgroundImage: customBackgroundImageUrl.value ? `url(${JSON.stringify(customBackgroundImageUrl.value)})` : 'none',
-}))
 
 const stoppingGids = ref<string[]>([])
 provide('stoppingGids', stoppingGids)
@@ -144,19 +120,6 @@ onBeforeUnmount(() => {
       <TaskActions />
     </header>
     <div class="panel-body">
-      <!-- Background stays outside the scroll container so task cards scroll above it. -->
-      <Transition name="watermark-fade">
-        <div
-          v-if="showTaskBackground"
-          class="task-background"
-          :style="backgroundLayerStyle"
-          @dragstart.prevent
-          @selectstart.prevent
-        >
-          <div v-if="showCustomBackgroundImage" class="task-background-image" :style="customBackgroundImageStyle" />
-          <img v-else :src="watermarkSrc" alt="Motrix Next" class="task-background-icon" draggable="false" />
-        </div>
-      </Transition>
       <div class="panel-content">
         <TaskList
           @pause="handlePauseTask"
@@ -204,13 +167,7 @@ onBeforeUnmount(() => {
   line-height: 24px;
   align-self: flex-start;
 }
-/*
- * .panel-body creates the positioning context for the background.
- * The background is absolutely positioned here (outside the scroll flow),
- * while .panel-content scrolls independently on top.
- */
 .panel-body {
-  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -223,40 +180,5 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* z-index lifts scrollable content above the background layer */
-  position: relative;
-  z-index: 1;
-}
-/* ── Permanent task background — pinned to scroll container viewport ────── */
-.task-background {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  user-select: none;
-  z-index: 0;
-}
-.task-background-icon {
-  max-width: 480px;
-  width: 80%;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-.task-background-image {
-  width: 100%;
-  height: 100%;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-}
-.watermark-fade-enter-active,
-.watermark-fade-leave-active {
-  transition: opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
-}
-.watermark-fade-enter-from,
-.watermark-fade-leave-to {
-  opacity: 0;
 }
 </style>

@@ -9,8 +9,10 @@ import { fetchTaskList, isEngineReady } from '@/api/aria2'
 import { useAppStore } from '@/stores/app'
 import { useHistoryStore } from '@/stores/history'
 import { usePreferenceStore } from '@/stores/preference'
+import { DEFAULT_APP_CONFIG } from '@shared/constants'
 import { logger } from '@shared/logger'
 import { checkTaskIsEd2kSearch } from '@shared/utils'
+import { opacityPercentToCssPercent } from '@shared/utils/opacity'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -49,6 +51,12 @@ const uniqueTaskCount = computed(() => {
   const overlap = Math.min(historyOverlapCount.value, activeTaskCount.value, finishedTaskCount.value)
   return activeTaskCount.value + finishedTaskCount.value - overlap
 })
+const activeBackgroundOpacity = computed(() =>
+  opacityPercentToCssPercent(
+    preferenceStore.config.taskListSelectedBackgroundOpacity,
+    DEFAULT_APP_CONFIG.taskListSelectedBackgroundOpacity,
+  ),
+)
 
 onMounted(async () => {
   mounted = true
@@ -116,5 +124,10 @@ function isActive(key: string) {
 </script>
 
 <template>
-  <SubnavPane :title="t('subnav.task-list') || 'Tasks'" :items="subnavItems" @navigate="nav" />
+  <SubnavPane
+    :title="t('subnav.task-list') || 'Tasks'"
+    :items="subnavItems"
+    :active-background-opacity="activeBackgroundOpacity"
+    @navigate="nav"
+  />
 </template>
