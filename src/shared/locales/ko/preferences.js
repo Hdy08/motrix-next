@@ -339,7 +339,6 @@ export default {
   'task-card-opacity': '작업 카드 불투명도',
   'sidebar-task-counts': '사이드바 작업 수',
   'task-list-watermark': '작업 목록 워터마크',
-  'default-background-icon': '기본 배경 아이콘',
   'custom-background-image': '사용자 지정 배경 이미지',
   'clear-background-image': '배경 이미지 지우기',
   'background-image-empty': '선택된 이미지 없음',

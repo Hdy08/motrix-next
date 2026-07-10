@@ -14,7 +14,6 @@ import { getVersion as getAppVersion } from '@tauri-apps/api/app'
 import { getVersion as getAria2Version } from '@/api/aria2'
 import { getLocale } from 'tauri-plugin-locale-api'
 import { resolveSystemLocale } from '@shared/utils/locale'
-import { normalizeOpacityPercent } from '@shared/utils/opacity'
 import { i18n } from '@/composables/useLocale'
 import { logger } from '@shared/logger'
 import { writeAppClipboardText } from '@shared/utils'
@@ -23,24 +22,14 @@ import {
   buildGeneralSystemConfig,
   transformGeneralForStore,
 } from '@/composables/useGeneralPreference'
-import {
-  BACKGROUND_OPACITY_MAX,
-  BACKGROUND_OPACITY_MIN,
-  COLOR_SCHEMES,
-  CUSTOM_COLOR_SCHEME_ID,
-  ENGINE_RPC_PORT,
-  UI_CONTROL_OPACITY_MAX,
-  UI_CONTROL_OPACITY_MIN,
-} from '@shared/constants'
+import { COLOR_SCHEMES, CUSTOM_COLOR_SCHEME_ID, ENGINE_RPC_PORT } from '@shared/constants'
 import { normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
   NForm,
   NFormItem,
   NInput,
-  NInputNumber,
   NSelect,
-  NSlider,
   NSwitch,
   NButton,
   NDivider,
@@ -60,6 +49,7 @@ import { CloudDownloadOutline, ImageOutline, TrashOutline } from '@vicons/ionico
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 import type { UpdateChannel } from '@shared/types'
 import PreferenceHintLabel from './PreferenceHintLabel.vue'
+import PreferenceOpacityControl from './PreferenceOpacityControl.vue'
 
 const { t, locale } = useI18n()
 const preferenceStore = usePreferenceStore()
@@ -261,49 +251,6 @@ const taskCardModeOptions = computed(() => [
   { label: t('preferences.task-card-mode-full'), value: 'full' },
   { label: t('preferences.task-card-mode-compact'), value: 'compact' },
 ])
-
-function normalizePercent(value: number | null, min: number, max: number): number {
-  return normalizeOpacityPercent(value, min, min, max)
-}
-
-const backgroundOpacityValue = computed({
-  get: () => form.value.backgroundOpacity,
-  set: (value: number | null) => {
-    form.value.backgroundOpacity = normalizePercent(value, BACKGROUND_OPACITY_MIN, BACKGROUND_OPACITY_MAX)
-  },
-})
-
-const taskCardOpacityValue = computed({
-  get: () => form.value.taskCardOpacity,
-  set: (value: number | null) => {
-    form.value.taskCardOpacity = normalizePercent(value, UI_CONTROL_OPACITY_MIN, UI_CONTROL_OPACITY_MAX)
-  },
-})
-
-const taskListSelectedBackgroundOpacityValue = computed({
-  get: () => form.value.taskListSelectedBackgroundOpacity,
-  set: (value: number | null) => {
-    form.value.taskListSelectedBackgroundOpacity = normalizePercent(
-      value,
-      UI_CONTROL_OPACITY_MIN,
-      UI_CONTROL_OPACITY_MAX,
-    )
-  },
-})
-
-const taskPaginationOpacityValue = computed({
-  get: () => form.value.taskPaginationOpacity,
-  set: (value: number | null) => {
-    form.value.taskPaginationOpacity = normalizePercent(value, UI_CONTROL_OPACITY_MIN, UI_CONTROL_OPACITY_MAX)
-  },
-})
-
-const speedLimitButtonOpacityValue = computed({
-  get: () => form.value.speedLimitButtonOpacity,
-  set: (value: number | null) => {
-    form.value.speedLimitButtonOpacity = normalizePercent(value, UI_CONTROL_OPACITY_MIN, UI_CONTROL_OPACITY_MAX)
-  },
-})
 
 async function handleSelectBackgroundImage(): Promise<void> {
   try {
@@ -558,30 +505,12 @@ onMounted(async () => {
             </NRadioGroup>
           </NFormItem>
           <NFormItem :label="t('preferences.task-card-opacity')">
-            <div class="opacity-control">
-              <NSlider
-                v-model:value="taskCardOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                class="opacity-slider"
-              />
-              <NInputNumber
-                v-model:value="taskCardOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                :precision="0"
-                :show-button="false"
-                class="opacity-input"
-              />
-              <NText depth="3" class="opacity-unit">%</NText>
-            </div>
+            <PreferenceOpacityControl v-model="form.taskCardOpacity" />
           </NFormItem>
           <NFormItem :label="t('preferences.sidebar-task-counts')">
             <NSwitch v-model:value="form.sidebarTaskCounts" />
           </NFormItem>
-          <NFormItem :label="t('preferences.default-background-icon')">
+          <NFormItem :label="t('preferences.task-list-watermark')">
             <NSwitch v-model:value="form.taskListWatermark" />
           </NFormItem>
           <NFormItem :label="t('preferences.custom-background-image')">
@@ -624,67 +553,13 @@ onMounted(async () => {
             </div>
           </NFormItem>
           <NFormItem :label="t('preferences.background-opacity')">
-            <div class="opacity-control">
-              <NSlider
-                v-model:value="backgroundOpacityValue"
-                :min="BACKGROUND_OPACITY_MIN"
-                :max="BACKGROUND_OPACITY_MAX"
-                :step="1"
-                class="opacity-slider"
-              />
-              <NInputNumber
-                v-model:value="backgroundOpacityValue"
-                :min="BACKGROUND_OPACITY_MIN"
-                :max="BACKGROUND_OPACITY_MAX"
-                :step="1"
-                :precision="0"
-                :show-button="false"
-                class="opacity-input"
-              />
-              <NText depth="3" class="opacity-unit">%</NText>
-            </div>
+            <PreferenceOpacityControl v-model="form.backgroundOpacity" />
           </NFormItem>
           <NFormItem :label="t('preferences.task-list-selected-background-opacity')">
-            <div class="opacity-control">
-              <NSlider
-                v-model:value="taskListSelectedBackgroundOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                class="opacity-slider"
-              />
-              <NInputNumber
-                v-model:value="taskListSelectedBackgroundOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                :precision="0"
-                :show-button="false"
-                class="opacity-input"
-              />
-              <NText depth="3" class="opacity-unit">%</NText>
-            </div>
+            <PreferenceOpacityControl v-model="form.taskListSelectedBackgroundOpacity" />
           </NFormItem>
           <NFormItem :label="t('preferences.task-pagination-opacity')">
-            <div class="opacity-control">
-              <NSlider
-                v-model:value="taskPaginationOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                class="opacity-slider"
-              />
-              <NInputNumber
-                v-model:value="taskPaginationOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                :precision="0"
-                :show-button="false"
-                class="opacity-input"
-              />
-              <NText depth="3" class="opacity-unit">%</NText>
-            </div>
+            <PreferenceOpacityControl v-model="form.taskPaginationOpacity" />
           </NFormItem>
         </div>
         <NFormItem :label="t('preferences.speed-limit-button')">
@@ -692,25 +567,7 @@ onMounted(async () => {
         </NFormItem>
         <NCollapseTransition :show="form.speedLimitButtonVisible" class="collapse-indent">
           <NFormItem :label="t('preferences.speed-limit-button-opacity')">
-            <div class="opacity-control">
-              <NSlider
-                v-model:value="speedLimitButtonOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                class="opacity-slider"
-              />
-              <NInputNumber
-                v-model:value="speedLimitButtonOpacityValue"
-                :min="UI_CONTROL_OPACITY_MIN"
-                :max="UI_CONTROL_OPACITY_MAX"
-                :step="1"
-                :precision="0"
-                :show-button="false"
-                class="opacity-input"
-              />
-              <NText depth="3" class="opacity-unit">%</NText>
-            </div>
+            <PreferenceOpacityControl v-model="form.speedLimitButtonOpacity" />
           </NFormItem>
         </NCollapseTransition>
         <NFormItem v-if="isMac" :label="t('preferences.dock-badge-speed')">
@@ -888,23 +745,5 @@ onMounted(async () => {
 }
 .task-list-subgroup {
   margin-top: -2px;
-}
-.opacity-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: min(420px, 100%);
-  min-width: 0;
-}
-.opacity-slider {
-  flex: 1 1 220px;
-  min-width: 160px;
-}
-.opacity-input {
-  flex: 0 0 72px;
-  width: 72px;
-}
-.opacity-unit {
-  flex: 0 0 auto;
 }
 </style>

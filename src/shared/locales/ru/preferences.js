@@ -342,7 +342,6 @@ export default {
   'task-card-opacity': 'Непрозрачность карточки задачи',
   'sidebar-task-counts': 'Счетчики задач в боковой панели',
   'task-list-watermark': 'Водяной знак списка задач',
-  'default-background-icon': 'Значок фона по умолчанию',
   'custom-background-image': 'Пользовательское фоновое изображение',
   'clear-background-image': 'Очистить фоновое изображение',
   'background-image-empty': 'Изображение не выбрано',

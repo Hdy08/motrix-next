@@ -337,7 +337,6 @@ export default {
   'task-card-opacity': 'ความทึบของการ์ดงาน',
   'sidebar-task-counts': 'จำนวนงานในแถบด้านข้าง',
   'task-list-watermark': 'ลายน้ำรายการงาน',
-  'default-background-icon': 'ไอคอนพื้นหลังเริ่มต้น',
   'custom-background-image': 'รูปภาพพื้นหลังแบบกำหนดเอง',
   'clear-background-image': 'ล้างรูปภาพพื้นหลัง',
   'background-image-empty': 'ยังไม่ได้เลือกรูปภาพ',

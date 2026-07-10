@@ -1,6 +1,7 @@
 import { computed } from 'vue'
 import { usePreferenceStore } from '@/stores/preference'
-import { BACKGROUND_OPACITY_MAX, BACKGROUND_OPACITY_MIN, DEFAULT_APP_CONFIG } from '@shared/constants'
+import { DEFAULT_APP_CONFIG } from '@shared/constants'
+import { normalizeOpacityPercent } from '@shared/utils/opacity'
 
 export function useTaskBackgroundConfig() {
   const preferenceStore = usePreferenceStore()
@@ -12,11 +13,9 @@ export function useTaskBackgroundConfig() {
   const isTaskBackgroundConfigured = computed(
     () => hasCustomBackgroundImagePath.value || showDefaultBackgroundIcon.value,
   )
-  const backgroundOpacity = computed(() => {
-    const opacity = Number(preferenceStore.config.backgroundOpacity)
-    const percent = Number.isFinite(opacity) ? opacity : DEFAULT_APP_CONFIG.backgroundOpacity
-    return Math.min(BACKGROUND_OPACITY_MAX, Math.max(BACKGROUND_OPACITY_MIN, percent)) / 100
-  })
+  const backgroundOpacity = computed(
+    () => normalizeOpacityPercent(preferenceStore.config.backgroundOpacity, DEFAULT_APP_CONFIG.backgroundOpacity) / 100,
+  )
   const defaultIconOpacity = computed(() => DEFAULT_APP_CONFIG.backgroundOpacity / 100)
 
   return {

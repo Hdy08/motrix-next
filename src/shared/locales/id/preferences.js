@@ -343,7 +343,6 @@ export default {
   'task-card-opacity': 'Opasitas kartu tugas',
   'sidebar-task-counts': 'Hitungan tugas bilah samping',
   'task-list-watermark': 'Tanda air daftar tugas',
-  'default-background-icon': 'Ikon latar belakang default',
   'custom-background-image': 'Gambar latar belakang khusus',
   'clear-background-image': 'Hapus gambar latar belakang',
   'background-image-empty': 'Belum ada gambar dipilih',

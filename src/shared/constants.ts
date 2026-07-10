@@ -330,10 +330,8 @@ export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.flatMap((group) =>
   group.options.filter((option) => option.cdn).map((option) => option.value),
 )
 
-export const BACKGROUND_OPACITY_MIN = 0
-export const BACKGROUND_OPACITY_MAX = 100
-export const UI_CONTROL_OPACITY_MIN = 0
-export const UI_CONTROL_OPACITY_MAX = 100
+export const OPACITY_PERCENT_MIN = 0
+export const OPACITY_PERCENT_MAX = 100
 
 export const DEFAULT_APP_CONFIG = {
   configVersion: 5,

@@ -55,7 +55,7 @@ import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useTaskBackgroundConfig } from '@/composables/useTaskBackgroundConfig'
-import { opacityPercentToCssPercent, opacityPercentToCssValue } from '@shared/utils/opacity'
+import { opacityPercentToCssPercent } from '@shared/utils/opacity'
 import { NModal, NButton, NCheckbox, NProgress, NPagination, useDialog } from 'naive-ui'
 
 import { useAppEvents } from '@/composables/useAppEvents'
@@ -97,10 +97,6 @@ const taskPaginationPageSizes = [5, 20, 40, 80, 100]
 const showTaskPaginationControl = ref(isTaskPage.value)
 const showSpeedLimitButton = computed(() => !!preferenceStore.config.speedLimitButtonVisible)
 const taskPaginationControlStyle = computed(() => ({
-  '--task-pagination-control-opacity': opacityPercentToCssValue(
-    preferenceStore.config.taskPaginationOpacity,
-    DEFAULT_APP_CONFIG.taskPaginationOpacity,
-  ),
   '--task-pagination-control-opacity-percent': opacityPercentToCssPercent(
     preferenceStore.config.taskPaginationOpacity,
     DEFAULT_APP_CONFIG.taskPaginationOpacity,

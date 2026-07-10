@@ -349,7 +349,6 @@ export default {
   'task-card-opacity': 'Opacité de la carte de tâche',
   'sidebar-task-counts': 'Compteurs de tâches dans la barre latérale',
   'task-list-watermark': 'Filigrane de la liste des tâches',
-  'default-background-icon': 'Icône d’arrière-plan par défaut',
   'custom-background-image': 'Image d’arrière-plan personnalisée',
   'clear-background-image': 'Effacer l’image d’arrière-plan',
   'background-image-empty': 'Aucune image sélectionnée',

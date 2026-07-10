@@ -544,6 +544,57 @@ pub fn read_local_file(path: String) -> Result<Vec<u8>, AppError> {
     std::fs::read(&path).map_err(|e| AppError::Io(format!("Failed to read file: {e}")))
 }
 
+const MAX_LOCAL_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
+const SUPPORTED_LOCAL_IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "webp", "bmp", "gif"];
+
+/// Reads a local background image through Tauri's binary IPC response path.
+///
+/// The dedicated command avoids serializing every byte as a JSON number and
+/// caps the input before allocation so a malformed preference cannot exhaust
+/// renderer or backend memory during startup.
+#[tauri::command]
+pub fn read_local_image(path: String) -> Result<tauri::ipc::Response, AppError> {
+    use std::io::Read;
+
+    let path = std::path::Path::new(&path);
+    let extension = path
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .map(str::to_ascii_lowercase)
+        .filter(|extension| SUPPORTED_LOCAL_IMAGE_EXTENSIONS.contains(&extension.as_str()))
+        .ok_or_else(|| AppError::Io("Unsupported background image format".into()))?;
+    debug_assert!(SUPPORTED_LOCAL_IMAGE_EXTENSIONS.contains(&extension.as_str()));
+
+    let mut file = std::fs::File::open(path)
+        .map_err(|e| AppError::Io(format!("Failed to open background image: {e}")))?;
+    let metadata = file
+        .metadata()
+        .map_err(|e| AppError::Io(format!("Failed to inspect background image: {e}")))?;
+    if !metadata.is_file() {
+        return Err(AppError::Io("Background image path is not a file".into()));
+    }
+    if metadata.len() > MAX_LOCAL_IMAGE_BYTES {
+        return Err(AppError::Io(format!(
+            "Background image exceeds the {} MiB limit",
+            MAX_LOCAL_IMAGE_BYTES / 1024 / 1024
+        )));
+    }
+
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.by_ref()
+        .take(MAX_LOCAL_IMAGE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| AppError::Io(format!("Failed to read background image: {e}")))?;
+    if bytes.len() as u64 > MAX_LOCAL_IMAGE_BYTES {
+        return Err(AppError::Io(format!(
+            "Background image exceeds the {} MiB limit",
+            MAX_LOCAL_IMAGE_BYTES / 1024 / 1024
+        )));
+    }
+
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 /// Lists regular file names in a directory.
 ///
 /// Used for aria2 metadata cleanup without exposing a wildcard frontend FS
@@ -654,11 +705,11 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
     // `\\?\UNC\server\share\file` → `\\server\share\file`
     // This is the fix for GitHub issue #3304.
     let path_str = canonical.to_string_lossy();
-    let fixed: PathBuf = if path_str.starts_with(r"\\?\UNC\") {
-        PathBuf::from(format!(r"\\{}", &path_str[r"\\?\UNC\".len()..]))
-    } else if path_str.starts_with(r"\\?\") {
+    let fixed: PathBuf = if let Some(stripped) = path_str.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{stripped}"))
+    } else if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
         // Shouldn't happen (dunce handles this), but defensive
-        PathBuf::from(&path_str[r"\\?\".len()..])
+        PathBuf::from(stripped)
     } else {
         canonical.clone()
     };
@@ -677,8 +728,6 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
     unsafe {
         // Initialize COM (required for Shell APIs, idempotent).
         let _ = CoInitializeEx(std::ptr::null(), 0);
-        crate::windows_focus::allow_set_foreground_window_any("reveal-in-explorer");
-
         // Convert parent directory to ITEMIDLIST.
         let parent_pidl = ILCreateFromPathW(parent_wide.as_ptr());
         if parent_pidl.is_null() {
@@ -716,24 +765,17 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
         }
     }
 
-    if !crate::windows_focus::focus_file_manager_window_for_dir(parent, "reveal-in-explorer") {
-        log::warn!("reveal_in_explorer: failed to focus parent={parent:?}");
-    }
-
     Ok(())
 }
 
 /// Fallback: open a directory with `ShellExecuteW("explore")`.
 #[cfg(windows)]
 fn shell_execute_open(dir: &str) -> Result<(), AppError> {
-    use std::path::Path;
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
     let dir_wide = to_wide(dir);
     let verb_wide = to_wide("explore");
-    crate::windows_focus::allow_set_foreground_window_any("shell-execute-open");
-
     let result = unsafe {
         ShellExecuteW(
             std::ptr::null_mut(), // hwnd
@@ -748,12 +790,6 @@ fn shell_execute_open(dir: &str) -> Result<(), AppError> {
     if (result as isize) <= 32 {
         Err(AppError::Io(format!("ShellExecuteW failed for {dir:?}")))
     } else {
-        if !crate::windows_focus::focus_file_manager_window_for_dir(
-            Path::new(dir),
-            "shell-execute-open",
-        ) {
-            log::warn!("shell_execute_open: failed to focus dir={dir:?}");
-        }
         Ok(())
     }
 }
@@ -771,58 +807,12 @@ fn to_wide(s: &str) -> Vec<u16> {
 /// (opens in file manager) or a file (opens with default app).
 #[tauri::command]
 pub fn open_path_normalized(app: AppHandle, path: String) -> Result<(), AppError> {
-    open_path_with_app(&app, &path)
-}
-
-pub(crate) fn open_path_with_app(app: &AppHandle, path: &str) -> Result<(), AppError> {
     use tauri_plugin_opener::OpenerExt;
     log::debug!("file:open path={path:?}");
-    let normalized = normalize_path(path);
-    let result = app
-        .opener()
+    let normalized = normalize_path(&path);
+    app.opener()
         .open_path(&normalized, None::<&str>)
-        .map_err(|e| AppError::Io(format!("Failed to open {}: {}", path, e)));
-
-    #[cfg(windows)]
-    if result.is_ok() {
-        let normalized_path = std::path::Path::new(&normalized);
-        if normalized_path.is_dir()
-            && !crate::windows_focus::focus_file_manager_window_for_dir(
-                normalized_path,
-                "open-path",
-            )
-        {
-            log::warn!("file:open failed to focus directory path={normalized:?}");
-        }
-    }
-
-    result
-}
-
-pub(crate) fn reveal_item_or_open_dir(
-    app: &AppHandle,
-    item_path: Option<&str>,
-    fallback_dir: Option<&str>,
-) -> Result<(), AppError> {
-    let item_path = item_path.map(str::trim).filter(|path| !path.is_empty());
-    let fallback_dir = fallback_dir.map(str::trim).filter(|dir| !dir.is_empty());
-
-    if let Some(path) = item_path {
-        match show_item_in_dir(path.to_string()) {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                if fallback_dir.is_none() {
-                    return Err(error);
-                }
-                log::warn!("file:reveal failed path={path:?}, falling back to directory: {error}");
-            }
-        }
-    }
-
-    let Some(dir) = fallback_dir else {
-        return Err(AppError::Io("No file or directory path to open".into()));
-    };
-    open_path_with_app(app, dir)
+        .map_err(|e| AppError::Io(format!("Failed to open {}: {}", path, e)))
 }
 
 /// Moves a file to the OS trash / recycle bin.
@@ -1007,6 +997,57 @@ mod tests {
     #[test]
     fn check_path_is_dir_returns_false_for_empty_string() {
         assert!(!check_path_is_dir(String::new()));
+    }
+
+    // ── read_local_image ─────────────────────────────────────────────
+
+    #[test]
+    fn read_local_image_accepts_supported_files_within_limit() {
+        use std::io::Write;
+
+        let mut file = tempfile::Builder::new()
+            .suffix(".png")
+            .tempfile()
+            .expect("create image fixture");
+        file.write_all(b"not-decoded-by-command")
+            .expect("write image fixture");
+
+        let result = read_local_image(file.path().to_string_lossy().to_string());
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn read_local_image_rejects_unsupported_extensions() {
+        let file = tempfile::Builder::new()
+            .suffix(".txt")
+            .tempfile()
+            .expect("create unsupported fixture");
+
+        let Err(error) = read_local_image(file.path().to_string_lossy().to_string()) else {
+            panic!("unsupported image must fail");
+        };
+
+        assert!(error
+            .to_string()
+            .contains("Unsupported background image format"));
+    }
+
+    #[test]
+    fn read_local_image_rejects_files_over_limit_before_reading() {
+        let file = tempfile::Builder::new()
+            .suffix(".webp")
+            .tempfile()
+            .expect("create oversized fixture");
+        file.as_file()
+            .set_len(MAX_LOCAL_IMAGE_BYTES + 1)
+            .expect("resize oversized fixture");
+
+        let Err(error) = read_local_image(file.path().to_string_lossy().to_string()) else {
+            panic!("oversized image must fail");
+        };
+
+        assert!(error.to_string().contains("exceeds the 16 MiB limit"));
     }
 
     // ── normalize_path ─────────────────────────────────────────────────

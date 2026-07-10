@@ -341,7 +341,6 @@ export default {
   'task-card-opacity': 'Непрозрачност на картата на задачата',
   'sidebar-task-counts': 'Броячи на задачите в страничната лента',
   'task-list-watermark': 'Воден знак на списъка със задачи',
-  'default-background-icon': 'Икона на фона по подразбиране',
   'custom-background-image': 'Персонализирано фоново изображение',
   'clear-background-image': 'Изчистване на фоновото изображение',
   'background-image-empty': 'Няма избрано изображение',

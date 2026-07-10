@@ -531,7 +531,7 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     switch (action) {
       case 'show-task-list':
         await surfaceMainWindow()
-        router.push('/task/all').catch(() => {
+        await router.push('/task/all').catch(() => {
           /* duplicate navigation */
         })
         break

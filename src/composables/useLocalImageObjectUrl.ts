@@ -43,15 +43,12 @@ export function useLocalImageObjectUrl(pathSource: MaybeRefOrGetter<string>): Re
       if (!path) return
 
       try {
-        const bytes = await invoke<number[]>('read_local_file', { path })
-        const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
-        const nextUrl = URL.createObjectURL(new Blob([uint8], { type: inferImageMimeType(path) }))
-
+        const bytes = await invoke<ArrayBuffer>('read_local_image', { path })
         if (currentRequestId !== requestId) {
-          URL.revokeObjectURL(nextUrl)
           return
         }
 
+        const nextUrl = URL.createObjectURL(new Blob([bytes], { type: inferImageMimeType(path) }))
         activeUrl = nextUrl
         objectUrl.value = nextUrl
       } catch (e) {

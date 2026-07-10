@@ -344,7 +344,6 @@ export default {
   'task-card-opacity': 'Deckkraft der Aufgabenkarte',
   'sidebar-task-counts': 'Aufgabenzähler in der Seitenleiste',
   'task-list-watermark': 'Wasserzeichen der Aufgabenliste',
-  'default-background-icon': 'Standard-Hintergrundsymbol',
   'custom-background-image': 'Benutzerdefiniertes Hintergrundbild',
   'clear-background-image': 'Hintergrundbild entfernen',
   'background-image-empty': 'Kein Bild ausgewählt',

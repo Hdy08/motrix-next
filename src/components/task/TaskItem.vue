@@ -279,8 +279,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   min-height: 78px;
-  isolation: isolate;
-  background-color: transparent;
+  background-color: color-mix(in srgb, var(--task-item-bg) var(--task-card-opacity-percent, 100%), transparent);
   border: 1px solid var(--m3-outline-variant);
   /* Reserve 3px left border at base color so sharing only animates color */
   border-left: 3px solid var(--m3-outline-variant);
@@ -288,22 +287,11 @@ onBeforeUnmount(() => {
   overflow: hidden;
   transition: border-color 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
-.task-item::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  background: var(--task-item-bg);
-  opacity: var(--task-card-opacity, 1);
-  pointer-events: none;
-}
 /* Gradient overlay — always present, hidden by default */
 .task-item::before {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: 1;
   border-radius: inherit;
   background: linear-gradient(90deg, color-mix(in srgb, var(--m3-success) 6%, transparent) 0%, transparent 40%);
   opacity: 0;
@@ -348,15 +336,11 @@ onBeforeUnmount(() => {
   opacity: 0.64;
 }
 .task-drag-rail {
-  position: relative;
-  z-index: 2;
   grid-row: 1;
   align-self: stretch;
   min-height: 0;
 }
 .task-body {
-  position: relative;
-  z-index: 2;
   display: grid;
   grid-template-rows: auto auto auto;
   min-width: 0;

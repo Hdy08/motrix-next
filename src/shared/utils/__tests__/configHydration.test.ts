@@ -190,6 +190,31 @@ describe('hydrateAppConfig', () => {
     )
   })
 
+  it('rejects coercible opacity values and malformed appearance booleans', () => {
+    const result = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      taskCardOpacity: '0' as unknown as number,
+      taskListWatermark: 'false' as unknown as boolean,
+      openFolderOnNotificationClick: 'true' as unknown as boolean,
+      openTaskListOnStartNotificationClick: 1 as unknown as boolean,
+    } as Partial<AppConfig>)
+
+    expect(result.config.taskCardOpacity).toBe(DEFAULT_APP_CONFIG.taskCardOpacity)
+    expect(result.config.taskListWatermark).toBe(DEFAULT_APP_CONFIG.taskListWatermark)
+    expect(result.config.openFolderOnNotificationClick).toBe(DEFAULT_APP_CONFIG.openFolderOnNotificationClick)
+    expect(result.config.openTaskListOnStartNotificationClick).toBe(
+      DEFAULT_APP_CONFIG.openTaskListOnStartNotificationClick,
+    )
+    expect(result.repairs).toEqual(
+      expect.arrayContaining([
+        'taskCardOpacity',
+        'taskListWatermark',
+        'openFolderOnNotificationClick',
+        'openTaskListOnStartNotificationClick',
+      ]),
+    )
+  })
+
   it('accepts aria2 notice logs without allowing notice for Motrix logs', () => {
     const result = hydrateAppConfig({
       configVersion: CONFIG_VERSION,

@@ -349,7 +349,6 @@ export default {
   'task-card-opacity': 'Opacidad de la tarjeta de tarea',
   'sidebar-task-counts': 'Contadores de tareas en la barra lateral',
   'task-list-watermark': 'Marca de agua de la lista de tareas',
-  'default-background-icon': 'Icono de fondo predeterminado',
   'custom-background-image': 'Imagen de fondo personalizada',
   'clear-background-image': 'Quitar imagen de fondo',
   'background-image-empty': 'No se seleccionó ninguna imagen',

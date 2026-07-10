@@ -236,8 +236,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(services::http_api::HttpApiState::new());
     #[cfg(target_os = "linux")]
     app.manage(services::notification::LinuxNotificationRegistry::new());
-    #[cfg(target_os = "windows")]
-    app.manage(services::notification::WindowsNotificationRegistry::new());
     app.manage(services::deep_link::PendingDeepLinkState::new());
     app.manage(services::external_input::PendingExternalInputState::new());
     app.manage(services::frontend_action::PendingFrontendActionState::new());
@@ -386,7 +384,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         };
         if let Some(w) = app.get_webview_window("main") {
             if let Ok(hwnd_handle) = w.hwnd() {
-                let hwnd = hwnd_handle.0 as *mut std::ffi::c_void;
+                let hwnd = hwnd_handle.0;
                 // DWMWCP_ROUND = 2: force DWM native rounded corners
                 let preference: u32 = 2;
                 unsafe {
@@ -760,6 +758,7 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            #[cfg(target_os = "windows")]
             if services::deep_link::handle_native_action_args(
                 app,
                 &argv,
@@ -863,6 +862,7 @@ pub fn run() {
             commands::check_path_exists,
             commands::check_path_is_dir,
             commands::read_local_file,
+            commands::read_local_image,
             commands::list_dir_files,
             commands::show_item_in_dir,
             commands::open_path_normalized,

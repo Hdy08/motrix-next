@@ -341,7 +341,6 @@ export default {
   'task-card-opacity': 'कार्य कार्ड अपारदर्शिता',
   'sidebar-task-counts': 'साइडबार कार्य गणना',
   'task-list-watermark': 'कार्य सूची वॉटरमार्क',
-  'default-background-icon': 'डिफ़ॉल्ट पृष्ठभूमि आइकन',
   'custom-background-image': 'कस्टम पृष्ठभूमि चित्र',
   'clear-background-image': 'पृष्ठभूमि चित्र साफ़ करें',
   'background-image-empty': 'कोई चित्र चयनित नहीं',

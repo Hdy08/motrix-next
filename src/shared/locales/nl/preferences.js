@@ -344,7 +344,6 @@ export default {
   'task-card-opacity': 'Dekking van taakkaart',
   'sidebar-task-counts': 'Taaktellers in de zijbalk',
   'task-list-watermark': 'Watermerk van takenlijst',
-  'default-background-icon': 'Standaard achtergrondpictogram',
   'custom-background-image': 'Aangepaste achtergrondafbeelding',
   'clear-background-image': 'Achtergrondafbeelding wissen',
   'background-image-empty': 'Geen afbeelding geselecteerd',

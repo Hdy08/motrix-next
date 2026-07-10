@@ -10,11 +10,33 @@
 
 <style scoped>
 .task-drag-handle {
-  position: relative;
   height: 100%;
   min-height: 0;
   border: none;
-  background: transparent;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(
+        in srgb,
+        color-mix(in srgb, var(--m3-on-surface) 7%, transparent) var(--task-card-opacity-percent, 100%),
+        transparent
+      ),
+      transparent 76%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(
+        in srgb,
+        color-mix(in srgb, var(--m3-on-surface) 3%, transparent) var(--task-card-opacity-percent, 100%),
+        transparent
+      ),
+      transparent 46%
+    ),
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--task-item-bg) 94%, var(--m3-on-surface) 6%) var(--task-card-opacity-percent, 100%),
+      transparent
+    );
   color: var(--m3-outline);
   cursor: grab;
   opacity: 0.52;
@@ -24,46 +46,48 @@
   align-items: center;
   justify-content: center;
   user-select: none;
-  overflow: hidden;
+  border-right: 1px solid
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--m3-outline-variant) 54%, transparent) var(--task-card-opacity-percent, 100%),
+      transparent
+    );
+  box-shadow: inset -1px 0 0
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--m3-on-surface) 3%, transparent) var(--task-card-opacity-percent, 100%),
+      transparent
+    );
   transition:
     opacity 0.16s cubic-bezier(0.2, 0, 0, 1),
     color 0.16s cubic-bezier(0.2, 0, 0, 1),
     background-color 0.16s cubic-bezier(0.2, 0, 0, 1),
     border-color 0.16s cubic-bezier(0.2, 0, 0, 1);
 }
-.task-drag-handle::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--m3-on-surface) 7%, transparent), transparent 76%),
-    linear-gradient(180deg, color-mix(in srgb, var(--m3-on-surface) 3%, transparent), transparent 46%),
-    color-mix(in srgb, var(--task-item-bg) 94%, var(--m3-on-surface) 6%);
-  border-right: 1px solid color-mix(in srgb, var(--m3-outline-variant) 54%, transparent);
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--m3-on-surface) 3%, transparent);
-  opacity: var(--task-card-opacity, 1);
-  pointer-events: none;
-  transition:
-    background-color 0.16s cubic-bezier(0.2, 0, 0, 1),
-    border-color 0.16s cubic-bezier(0.2, 0, 0, 1),
-    box-shadow 0.16s cubic-bezier(0.2, 0, 0, 1),
-    opacity 0.16s cubic-bezier(0.2, 0, 0, 1);
-}
 .task-drag-handle:hover {
   color: color-mix(in srgb, var(--color-primary) 75%, var(--m3-outline));
   opacity: 0.96;
-}
-.task-drag-handle:hover::before {
-  border-right-color: color-mix(in srgb, var(--color-primary) 46%, transparent);
-  background-color: color-mix(in srgb, var(--color-primary) 12%, var(--task-item-bg));
-  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--color-primary) 18%, transparent);
+  border-right-color: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--color-primary) 46%, transparent) var(--task-card-opacity-percent, 100%),
+    transparent
+  );
+  background-color: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--color-primary) 12%, var(--task-item-bg)) var(--task-card-opacity-percent, 100%),
+    transparent
+  );
+  box-shadow: inset -1px 0 0
+    color-mix(
+      in srgb,
+      color-mix(in srgb, var(--color-primary) 18%, transparent) var(--task-card-opacity-percent, 100%),
+      transparent
+    );
 }
 .task-drag-handle:active {
   cursor: grabbing;
 }
 .task-drag-dots {
-  position: relative;
-  z-index: 1;
   transform: translateX(-1px);
   letter-spacing: -1px;
 }

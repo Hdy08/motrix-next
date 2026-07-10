@@ -8,36 +8,36 @@ use super::notification_i18n::{
 use crate::error::AppError;
 use tauri::Manager;
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(target_os = "linux")]
 use std::{
     collections::VecDeque,
     sync::Mutex,
     time::{Duration, Instant},
 };
 
-#[cfg(target_os = "windows")]
-use std::sync::atomic::{AtomicU64, Ordering};
-
 #[cfg(not(target_os = "linux"))]
 use tauri_plugin_notification::NotificationExt;
 
+#[cfg(any(target_os = "windows", test))]
+use hmac::{Hmac, Mac};
+#[cfg(any(target_os = "windows", test))]
+use sha2::Sha256;
+
 #[cfg(target_os = "windows")]
 use windows::{
-    core::{IInspectable, Interface, HSTRING},
+    core::HSTRING,
     Data::Xml::Dom::XmlDocument,
-    Foundation::TypedEventHandler,
-    UI::Notifications::{ToastActivatedEventArgs, ToastNotification, ToastNotificationManager},
+    UI::Notifications::{ToastNotification, ToastNotificationManager},
 };
+
+#[cfg(target_os = "windows")]
+use tauri_plugin_store::StoreExt;
 
 #[cfg(target_os = "linux")]
 const LINUX_NOTIFICATION_RETENTION_TTL: Duration = Duration::from_secs(120);
 #[cfg(target_os = "linux")]
 const LINUX_NOTIFICATION_RETENTION_LIMIT: usize = 32;
 
-#[cfg(target_os = "windows")]
-const WINDOWS_NOTIFICATION_RETENTION_TTL: Duration = Duration::from_secs(24 * 60 * 60);
-#[cfg(target_os = "windows")]
-const WINDOWS_NOTIFICATION_RETENTION_LIMIT: usize = 64;
 #[cfg(any(target_os = "windows", test))]
 const WINDOWS_NOTIFICATION_OPEN_FOLDER_ACTION: &str = "open-folder";
 #[cfg(any(target_os = "windows", test))]
@@ -45,7 +45,12 @@ const WINDOWS_NOTIFICATION_SHOW_TASK_LIST_ACTION: &str = "show-task-list";
 #[cfg(any(target_os = "windows", test))]
 const WINDOWS_START_NOTIFICATION_GROUP: &str = "download-start";
 #[cfg(target_os = "windows")]
-static WINDOWS_NOTIFICATION_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+const WINDOWS_START_NOTIFICATION_LIMIT: usize = 64;
+#[cfg(any(target_os = "windows", test))]
+pub(crate) const WINDOWS_NOTIFICATION_DIR_MAX_CHARS: usize = 8_192;
+#[cfg(target_os = "windows")]
+const WINDOWS_DEBUG_NOTIFICATION_APP_ID: &str =
+    "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
 
 #[cfg(target_os = "linux")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,109 +172,6 @@ fn trim_linux_notifications_to_limit(
     original_len - retained.len()
 }
 
-#[cfg(target_os = "windows")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WindowsNotificationRetention {
-    pub registry_size: usize,
-    pub retention_limit: usize,
-    pub ttl_secs: u64,
-    pub pruned_expired: usize,
-    pub dropped_over_limit: usize,
-}
-
-#[cfg(target_os = "windows")]
-pub struct WindowsNotificationRegistry {
-    retained: Mutex<VecDeque<RetainedWindowsNotification>>,
-}
-
-#[cfg(target_os = "windows")]
-struct RetainedWindowsNotification {
-    key: u64,
-    created_at: Instant,
-    _toast: ToastNotification,
-}
-
-#[cfg(target_os = "windows")]
-impl WindowsNotificationRegistry {
-    pub fn new() -> Self {
-        Self {
-            retained: Mutex::new(VecDeque::new()),
-        }
-    }
-
-    pub fn retain(&self, key: u64, toast: ToastNotification) -> WindowsNotificationRetention {
-        let now = Instant::now();
-        let mut retained = self
-            .retained
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let pruned_expired = prune_expired_windows_notifications(
-            &mut retained,
-            now,
-            WINDOWS_NOTIFICATION_RETENTION_TTL,
-        );
-
-        retained.push_back(RetainedWindowsNotification {
-            key,
-            created_at: now,
-            _toast: toast,
-        });
-
-        let dropped_over_limit = trim_windows_notifications_to_limit(
-            &mut retained,
-            WINDOWS_NOTIFICATION_RETENTION_LIMIT,
-        );
-
-        WindowsNotificationRetention {
-            registry_size: retained.len(),
-            retention_limit: WINDOWS_NOTIFICATION_RETENTION_LIMIT,
-            ttl_secs: WINDOWS_NOTIFICATION_RETENTION_TTL.as_secs(),
-            pruned_expired,
-            dropped_over_limit,
-        }
-    }
-
-    pub fn remove(&self, key: u64) -> bool {
-        let mut retained = self
-            .retained
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let original_len = retained.len();
-        retained.retain(|notification| notification.key != key);
-        retained.len() != original_len
-    }
-}
-
-#[cfg(target_os = "windows")]
-impl Default for WindowsNotificationRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn prune_expired_windows_notifications(
-    retained: &mut VecDeque<RetainedWindowsNotification>,
-    now: Instant,
-    ttl: Duration,
-) -> usize {
-    let original_len = retained.len();
-    retained.retain(|notification| now.duration_since(notification.created_at) < ttl);
-    original_len - retained.len()
-}
-
-#[cfg(target_os = "windows")]
-fn trim_windows_notifications_to_limit(
-    retained: &mut VecDeque<RetainedWindowsNotification>,
-    limit: usize,
-) -> usize {
-    let original_len = retained.len();
-    while retained.len() > limit {
-        retained.pop_front();
-    }
-    original_len - retained.len()
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskNotificationKind {
     Start,
@@ -280,8 +182,7 @@ pub enum TaskNotificationKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskNotificationOpenTarget {
-    pub dir: Option<String>,
-    pub item_path: Option<String>,
+    pub dir: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -357,50 +258,30 @@ fn click_open_target_for_event(
 }
 
 fn notification_open_target_for_event(event: &TaskEvent) -> Option<TaskNotificationOpenTarget> {
-    let dir = event_dir_for_notification(event);
-    let item_path = notification_item_path_for_event(event);
-
-    (dir.is_some() || item_path.is_some()).then_some(TaskNotificationOpenTarget { dir, item_path })
+    notification_open_dir_for_event(event).map(|dir| TaskNotificationOpenTarget { dir })
 }
 
-fn event_dir_for_notification(event: &TaskEvent) -> Option<String> {
+fn notification_open_dir_for_event(event: &TaskEvent) -> Option<String> {
     let dir = event.dir.trim();
-    (!dir.is_empty()).then(|| dir.to_string())
-}
+    if !dir.is_empty() && looks_like_absolute_path(dir) {
+        return Some(dir.to_string());
+    }
 
-fn notification_item_path_for_event(event: &TaskEvent) -> Option<String> {
+    let parent_dir = |path: &str| {
+        let path = path.trim();
+        looks_like_absolute_path(path)
+            .then(|| std::path::Path::new(path).parent())
+            .flatten()
+            .map(|parent| parent.to_string_lossy().to_string())
+            .filter(|parent| !parent.is_empty())
+    };
+
     event
         .files
         .iter()
         .filter(|file| file.selected.eq_ignore_ascii_case("true"))
-        .find_map(|file| normalized_notification_file_path(event, &file.path))
-        .or_else(|| {
-            event
-                .files
-                .iter()
-                .find_map(|file| normalized_notification_file_path(event, &file.path))
-        })
-}
-
-fn normalized_notification_file_path(event: &TaskEvent, path: &str) -> Option<String> {
-    let path = path.trim();
-    if path.is_empty() {
-        return None;
-    }
-    if looks_like_absolute_path(path) {
-        return Some(path.to_string());
-    }
-
-    let dir = event.dir.trim();
-    if dir.is_empty() {
-        return Some(path.to_string());
-    }
-    Some(
-        std::path::Path::new(dir)
-            .join(path)
-            .to_string_lossy()
-            .to_string(),
-    )
+        .find_map(|file| parent_dir(&file.path))
+        .or_else(|| event.files.iter().find_map(|file| parent_dir(&file.path)))
 }
 
 fn looks_like_absolute_path(path: &str) -> bool {
@@ -419,14 +300,16 @@ fn spawn_click_open_target_handler(
     target: TaskNotificationOpenTarget,
     handle: notify_rust::NotificationHandle,
 ) {
-    let _ = std::thread::spawn(move || {
-        handle.wait_for_action(|action| {
-            if action == "default" {
-                open_notification_target(&app, &target);
-            } else {
-                log::debug!("notification:click-open-target ignored action={action:?}");
-            }
-        });
+    tauri::async_runtime::spawn(async move {
+        handle
+            .wait_for_action_async(|action| {
+                if action == "default" {
+                    open_notification_target(&app, &target);
+                } else {
+                    log::debug!("notification:click-open-target ignored action={action:?}");
+                }
+            })
+            .await;
     });
 }
 
@@ -435,38 +318,43 @@ fn spawn_click_show_task_list_handler(
     app: tauri::AppHandle,
     handle: notify_rust::NotificationHandle,
 ) {
-    let _ = std::thread::spawn(move || {
-        handle.wait_for_action(|action| {
-            if action == "default" {
-                show_notification_task_list(&app);
-            } else {
-                log::debug!("notification:click-show-task-list ignored action={action:?}");
-            }
-        });
+    tauri::async_runtime::spawn(async move {
+        handle
+            .wait_for_action_async(|action| {
+                if action == "default" {
+                    show_notification_task_list(&app);
+                } else {
+                    log::debug!("notification:click-show-task-list ignored action={action:?}");
+                }
+            })
+            .await;
     });
 }
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
-fn open_notification_target(app: &tauri::AppHandle, target: &TaskNotificationOpenTarget) {
-    match crate::commands::fs::reveal_item_or_open_dir(
-        app,
-        target.item_path.as_deref(),
-        target.dir.as_deref(),
-    ) {
-        Ok(()) => log::info!(
-            "notification:click-open-target opened item={:?} dir={:?}",
-            target.item_path,
+pub(crate) fn open_notification_target(
+    app: &tauri::AppHandle,
+    target: &TaskNotificationOpenTarget,
+) {
+    let path = std::path::Path::new(&target.dir);
+    if !path.is_absolute() || !path.is_dir() {
+        log::warn!(
+            "notification:click-open-target rejected non-directory path={:?}",
             target.dir
-        ),
+        );
+        return;
+    }
+
+    match crate::commands::fs::open_path_normalized(app.clone(), target.dir.clone()) {
+        Ok(()) => log::info!("notification:click-open-target opened dir={:?}", target.dir),
         Err(error) => log::warn!(
-            "notification:click-open-target failed item={:?} dir={:?} error={error}",
-            target.item_path,
+            "notification:click-open-target failed dir={:?} error={error}",
             target.dir
         ),
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(target_os = "linux")]
 fn show_notification_task_list(app: &tauri::AppHandle) {
     crate::services::frontend_action::dispatch_frontend_action(
         app,
@@ -545,10 +433,12 @@ pub fn build_task_start_notification(
         return None;
     }
 
-    let first_name = task_names
+    let task_names = task_names
         .iter()
         .map(|name| name.trim())
-        .find(|name| !name.is_empty())?;
+        .filter(|name| !name.is_empty())
+        .collect::<Vec<_>>();
+    let first_name = task_names.first()?;
     let requested_locale = if config.locale == "auto" {
         sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string())
     } else {
@@ -562,7 +452,7 @@ pub fn build_task_start_notification(
         format_batch_task_message(
             texts.download_batch_start_body,
             first_name,
-            task_names.len().saturating_sub(1),
+            task_names.len() - 1,
         )
     };
 
@@ -615,22 +505,53 @@ fn send_windows_task_start_notifications_from_names(
         return Ok(false);
     }
 
-    let mut submitted = 0usize;
-    for task_name in task_names
+    let task_names = task_names
         .iter()
         .map(|name| name.trim())
         .filter(|name| !name.is_empty())
-    {
+        .collect::<Vec<_>>();
+    let attempted = task_names.len().min(WINDOWS_START_NOTIFICATION_LIMIT);
+    let mut submitted = 0usize;
+    let mut first_error = None;
+    for task_name in task_names.iter().take(attempted) {
         let Some(content) = build_task_start_notification(&[task_name.to_string()], config) else {
             continue;
         };
-        show_windows_start_notification(app, &content, task_name).map_err(AppError::Io)?;
-        submitted += 1;
+        match show_windows_start_notification(app, &content, task_name) {
+            Ok(()) => submitted += 1,
+            Err(error) => {
+                log::warn!(
+                    "notification:windows-start-submit-failed task_name={task_name:?} error={error}"
+                );
+                if first_error.is_none() {
+                    first_error = Some(error);
+                }
+            }
+        }
     }
 
     if submitted == 0 {
+        if let Some(error) = first_error {
+            return Err(AppError::Io(error));
+        }
         log::debug!("notification:skip reason=empty-task-names type=Start");
         return Ok(false);
+    }
+
+    if attempted > submitted {
+        log::warn!(
+            "notification:windows-start-partial submitted={} failed={}",
+            submitted,
+            attempted - submitted
+        );
+    }
+    if task_names.len() > attempted {
+        log::warn!(
+            "notification:windows-start-truncated submitted={} omitted={} limit={}",
+            submitted,
+            task_names.len() - attempted,
+            WINDOWS_START_NOTIFICATION_LIMIT
+        );
     }
 
     log::info!(
@@ -849,41 +770,20 @@ fn send_platform_notification(
         return show_default_platform_notification(app, content);
     }
 
-    let retention = show_windows_clickable_notification(app, content)?;
-    log::debug!(
-        "notification:windows-retained type={:?} registry_size={} retention_limit={} ttl_secs={} pruned_expired={} dropped_over_limit={}",
-        content.kind,
-        retention.registry_size,
-        retention.retention_limit,
-        retention.ttl_secs,
-        retention.pruned_expired,
-        retention.dropped_over_limit
-    );
+    show_windows_notification(app, content, None, None)?;
 
     Ok(NotificationDispatchResult::Submitted)
 }
 
 #[cfg(target_os = "windows")]
-fn show_windows_clickable_notification(
-    app: &tauri::AppHandle,
-    content: &TaskNotificationContent,
-) -> Result<WindowsNotificationRetention, String> {
-    show_windows_clickable_notification_with_metadata(app, content, None, None)
-}
-
-#[cfg(target_os = "windows")]
-fn show_windows_clickable_notification_with_metadata(
+fn show_windows_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
     tag: Option<&str>,
     group: Option<&str>,
-) -> Result<WindowsNotificationRetention, String> {
+) -> Result<(), String> {
     let app_id = windows_notification_app_id(app);
-    let key = next_windows_notification_key();
-    let toast = build_windows_toast_notification(content)?;
-    let app_handle = app.clone();
-    let click_open_target = content.click_open_target.clone();
-    let click_show_task_list = content.click_show_task_list;
+    let toast = build_windows_toast_notification(app, content)?;
 
     if let Some(tag) = tag {
         toast
@@ -896,52 +796,12 @@ fn show_windows_clickable_notification_with_metadata(
             .map_err(|error| format!("{error:?}"))?;
     }
 
-    let activated_handler =
-        TypedEventHandler::<ToastNotification, IInspectable>::new(move |_, args| {
-            let action = windows_activation_action(&args);
-            if let Some(target) = click_open_target
-                .as_ref()
-                .filter(|_| should_open_target_for_windows_activation(action.as_deref()))
-            {
-                open_notification_target(&app_handle, target);
-                if let Some(registry) = app_handle.try_state::<WindowsNotificationRegistry>() {
-                    let removed = registry.remove(key);
-                    log::debug!(
-                        "notification:windows-retained-remove key={} removed={}",
-                        key,
-                        removed
-                    );
-                }
-            } else if click_show_task_list
-                && should_show_task_list_for_windows_activation(action.as_deref())
-            {
-                show_notification_task_list(&app_handle);
-                if let Some(registry) = app_handle.try_state::<WindowsNotificationRegistry>() {
-                    let removed = registry.remove(key);
-                    log::debug!(
-                        "notification:windows-retained-remove key={} removed={}",
-                        key,
-                        removed
-                    );
-                }
-            } else {
-                log::debug!("notification:click-action ignored action={action:?}");
-            }
-            Ok(())
-        });
-
-    toast
-        .Activated(&activated_handler)
-        .map_err(|error| format!("{error:?}"))?;
-
     let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(&app_id))
         .map_err(|error| format!("{error:?}"))?;
     notifier
         .Show(&toast)
         .map_err(|error| format!("{error:?}"))?;
-
-    let registry = app.state::<WindowsNotificationRegistry>();
-    Ok(registry.retain(key, toast))
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -950,39 +810,18 @@ fn show_windows_start_notification(
     content: &TaskNotificationContent,
     task_name: &str,
 ) -> Result<(), String> {
-    let app_id = windows_notification_app_id(app);
     let tag = windows_start_notification_tag(task_name);
-    if content.click_show_task_list {
-        show_windows_clickable_notification_with_metadata(
-            app,
-            content,
-            Some(&tag),
-            Some(WINDOWS_START_NOTIFICATION_GROUP),
-        )?;
-        log::debug!(
-            "notification:windows-start-submitted tag={} task_name={task_name:?} clickable=true",
-            tag
-        );
-        return Ok(());
-    }
-
-    let toast = build_windows_toast_notification(content)?;
-    toast
-        .SetTag(&HSTRING::from(&tag))
-        .map_err(|error| format!("{error:?}"))?;
-    toast
-        .SetGroup(&HSTRING::from(WINDOWS_START_NOTIFICATION_GROUP))
-        .map_err(|error| format!("{error:?}"))?;
-
-    let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(&app_id))
-        .map_err(|error| format!("{error:?}"))?;
-    notifier
-        .Show(&toast)
-        .map_err(|error| format!("{error:?}"))?;
+    show_windows_notification(
+        app,
+        content,
+        Some(&tag),
+        Some(WINDOWS_START_NOTIFICATION_GROUP),
+    )?;
 
     log::debug!(
-        "notification:windows-start-submitted tag={} task_name={task_name:?}",
-        tag
+        "notification:windows-start-submitted tag={} task_name={task_name:?} clickable={}",
+        tag,
+        content.click_show_task_list
     );
     Ok(())
 }
@@ -1027,24 +866,30 @@ fn remove_windows_start_notification_for_completed_task(
 }
 
 #[cfg(target_os = "windows")]
-fn next_windows_notification_key() -> u64 {
-    WINDOWS_NOTIFICATION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-}
-
-#[cfg(target_os = "windows")]
 fn build_windows_toast_notification(
+    app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<ToastNotification, String> {
+    let action_secret = notification_action_secret(app);
+    if content.click_open_target.is_some() && action_secret.is_none() {
+        log::warn!("notification:windows-click-disabled reason=missing-action-secret");
+    }
     let toast_xml = XmlDocument::new().map_err(|error| format!("{error:?}"))?;
     toast_xml
-        .LoadXml(&HSTRING::from(build_windows_toast_xml(content)))
+        .LoadXml(&HSTRING::from(build_windows_toast_xml(
+            content,
+            action_secret.as_deref(),
+        )))
         .map_err(|error| format!("{error:?}"))?;
     ToastNotification::CreateToastNotification(&toast_xml).map_err(|error| format!("{error:?}"))
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn build_windows_toast_xml(content: &TaskNotificationContent) -> String {
-    let activation = windows_notification_activation_url(content)
+fn build_windows_toast_xml(
+    content: &TaskNotificationContent,
+    action_secret: Option<&str>,
+) -> String {
+    let activation = windows_notification_activation_url(content, action_secret)
         .map(|url| {
             format!(
                 r#" activationType="protocol" launch="{}""#,
@@ -1062,9 +907,12 @@ fn build_windows_toast_xml(content: &TaskNotificationContent) -> String {
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn windows_notification_activation_url(content: &TaskNotificationContent) -> Option<String> {
+fn windows_notification_activation_url(
+    content: &TaskNotificationContent,
+    action_secret: Option<&str>,
+) -> Option<String> {
     if let Some(target) = content.click_open_target.as_ref() {
-        Some(windows_open_folder_activation_url(target))
+        windows_open_folder_activation_url(target, action_secret?)
     } else {
         content
             .click_show_task_list
@@ -1073,26 +921,92 @@ fn windows_notification_activation_url(content: &TaskNotificationContent) -> Opt
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn windows_open_folder_activation_url(target: &TaskNotificationOpenTarget) -> String {
-    let mut url = url::Url::parse("motrixnext://open-folder").expect("static URL must parse");
+fn windows_open_folder_activation_url(
+    target: &TaskNotificationOpenTarget,
+    action_secret: &str,
+) -> Option<String> {
+    let dir = target.dir.trim();
+    if dir.is_empty() || dir.chars().count() > WINDOWS_NOTIFICATION_DIR_MAX_CHARS {
+        return None;
+    }
+
+    let signature = sign_notification_open_dir(action_secret, dir)?;
+    let mut url = url::Url::parse("motrixnext://open-folder").ok()?;
     {
         let mut query = url.query_pairs_mut();
-        if let Some(dir) = target.dir.as_deref() {
-            query.append_pair("dir", dir);
-        }
-        if let Some(path) = target.item_path.as_deref() {
-            query.append_pair("path", path);
-        }
+        query.append_pair("dir", dir);
+        query.append_pair("sig", &signature);
     }
-    url.to_string()
+    Some(url.to_string())
 }
 
 #[cfg(any(target_os = "windows", test))]
 fn windows_show_task_list_activation_url() -> String {
-    let url = format!("motrixnext://{WINDOWS_NOTIFICATION_SHOW_TASK_LIST_ACTION}");
-    url::Url::parse(&url)
-        .expect("static URL must parse")
-        .to_string()
+    format!("motrixnext://{WINDOWS_NOTIFICATION_SHOW_TASK_LIST_ACTION}")
+}
+
+#[cfg(any(target_os = "windows", test))]
+type NotificationActionMac = Hmac<Sha256>;
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn sign_notification_open_dir(secret: &str, dir: &str) -> Option<String> {
+    let mut mac = NotificationActionMac::new_from_slice(secret.as_bytes()).ok()?;
+    mac.update(WINDOWS_NOTIFICATION_OPEN_FOLDER_ACTION.as_bytes());
+    mac.update(&[0]);
+    mac.update(dir.as_bytes());
+    Some(encode_hex(&mac.finalize().into_bytes()))
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn verify_notification_open_dir_signature(
+    secret: &str,
+    dir: &str,
+    signature: &str,
+) -> bool {
+    let Some(signature) = decode_sha256_hex(signature) else {
+        return false;
+    };
+    let Ok(mut mac) = NotificationActionMac::new_from_slice(secret.as_bytes()) else {
+        return false;
+    };
+    mac.update(WINDOWS_NOTIFICATION_OPEN_FOLDER_ACTION.as_bytes());
+    mac.update(&[0]);
+    mac.update(dir.as_bytes());
+    mac.verify_slice(&signature).is_ok()
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(*byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(*byte & 0x0f)]));
+    }
+    encoded
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn decode_sha256_hex(value: &str) -> Option<[u8; 32]> {
+    if value.len() != 64 {
+        return None;
+    }
+
+    let mut decoded = [0u8; 32];
+    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+        decoded[index] = (decode_hex_nibble(pair[0])? << 4) | decode_hex_nibble(pair[1])?;
+    }
+    Some(decoded)
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn decode_hex_nibble(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -1126,14 +1040,6 @@ fn escape_windows_toast_xml(value: &str) -> String {
     escaped
 }
 
-#[cfg(target_os = "windows")]
-fn windows_activation_action(args: &Option<IInspectable>) -> Option<String> {
-    let args = args.as_ref()?;
-    let args = args.cast::<ToastActivatedEventArgs>().ok()?;
-    let arguments = args.Arguments().ok()?;
-    (!arguments.is_empty()).then(|| arguments.to_string())
-}
-
 #[cfg(not(target_os = "linux"))]
 fn show_default_platform_notification(
     app: &tauri::AppHandle,
@@ -1164,64 +1070,25 @@ fn windows_notification_app_id(app: &tauri::AppHandle) -> String {
     let debug_suffix = format!("{separator}target{separator}debug");
     let release_suffix = format!("{separator}target{separator}release");
     if exe_dir.ends_with(&debug_suffix) || exe_dir.ends_with(&release_suffix) {
-        tauri_winrt_notification::Toast::POWERSHELL_APP_ID.to_string()
+        WINDOWS_DEBUG_NOTIFICATION_APP_ID.to_string()
     } else {
         identifier
     }
 }
 
-#[cfg(any(target_os = "windows", test))]
-fn should_open_target_for_windows_activation(action: Option<&str>) -> bool {
-    match action.map(str::trim).filter(|action| !action.is_empty()) {
-        None => true,
-        Some(action) => is_windows_open_target_activation_url(action),
-    }
-}
-
-#[cfg(any(target_os = "windows", test))]
-fn should_show_task_list_for_windows_activation(action: Option<&str>) -> bool {
-    match action.map(str::trim).filter(|action| !action.is_empty()) {
-        None => true,
-        Some(action) => is_windows_show_task_list_activation_url(action),
-    }
-}
-
-#[cfg(any(target_os = "windows", test))]
-fn is_windows_open_target_activation_url(value: &str) -> bool {
-    let Ok(parsed) = url::Url::parse(value) else {
-        return false;
-    };
-    if parsed.scheme() != "motrixnext" {
-        return false;
-    }
-
-    let action = parsed
-        .host_str()
-        .filter(|host| !host.is_empty())
-        .unwrap_or_else(|| parsed.path().trim_start_matches('/'));
-    if action != WINDOWS_NOTIFICATION_OPEN_FOLDER_ACTION {
-        return false;
-    }
-
-    parsed
-        .query_pairs()
-        .any(|(key, value)| matches!(key.as_ref(), "dir" | "path") && !value.trim().is_empty())
-}
-
-#[cfg(any(target_os = "windows", test))]
-fn is_windows_show_task_list_activation_url(value: &str) -> bool {
-    let Ok(parsed) = url::Url::parse(value) else {
-        return false;
-    };
-    if parsed.scheme() != "motrixnext" {
-        return false;
-    }
-
-    let action = parsed
-        .host_str()
-        .filter(|host| !host.is_empty())
-        .unwrap_or_else(|| parsed.path().trim_start_matches('/'));
-    action == WINDOWS_NOTIFICATION_SHOW_TASK_LIST_ACTION
+#[cfg(target_os = "windows")]
+pub(crate) fn notification_action_secret(app: &tauri::AppHandle) -> Option<String> {
+    let preferences = app.store("config.json").ok()?.get("preferences")?;
+    ["extensionApiSecret", "rpcSecret"]
+        .into_iter()
+        .find_map(|key| {
+            preferences
+                .get(key)
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|secret| !secret.is_empty())
+                .map(str::to_string)
+        })
 }
 
 #[cfg(test)]
@@ -1285,8 +1152,7 @@ mod tests {
         assert_eq!(
             content.click_open_target,
             Some(TaskNotificationOpenTarget {
-                dir: Some("/tmp".to_string()),
-                item_path: Some("/tmp/file.zip".to_string()),
+                dir: "/tmp".to_string(),
             })
         );
     }
@@ -1316,8 +1182,7 @@ mod tests {
         assert_eq!(
             content.click_open_target,
             Some(TaskNotificationOpenTarget {
-                dir: Some("/tmp".to_string()),
-                item_path: Some("/tmp/file.zip".to_string()),
+                dir: "/tmp".to_string(),
             })
         );
     }
@@ -1374,7 +1239,7 @@ mod tests {
     }
 
     #[test]
-    fn complete_notification_uses_file_target_when_dir_is_blank() {
+    fn complete_notification_uses_file_parent_when_dir_is_blank() {
         let mut ev = event();
         ev.dir = "  ".to_string();
         let mut config = cfg();
@@ -1386,10 +1251,22 @@ mod tests {
         assert_eq!(
             content.click_open_target,
             Some(TaskNotificationOpenTarget {
-                dir: None,
-                item_path: Some("/tmp/file.zip".to_string()),
+                dir: "/tmp".to_string(),
             })
         );
+    }
+
+    #[test]
+    fn complete_notification_rejects_relative_open_targets() {
+        let mut ev = event();
+        ev.dir = "relative/downloads".to_string();
+        ev.files[0].path = "relative/downloads/file.zip".to_string();
+        let mut config = cfg();
+        config.open_folder_on_notification_click = true;
+
+        let content = build_task_notification(events::TASK_COMPLETE, &ev, &config).unwrap();
+
+        assert_eq!(content.click_open_target, None);
     }
 
     #[test]
@@ -1448,6 +1325,21 @@ mod tests {
     }
 
     #[test]
+    fn batch_start_notification_ignores_blank_task_names_in_count() {
+        let content = build_task_start_notification(
+            &[
+                "file.zip".to_string(),
+                "  ".to_string(),
+                "b.iso".to_string(),
+            ],
+            &cfg(),
+        )
+        .unwrap();
+
+        assert_eq!(content.body, "Downloading: file.zip and 1 other task(s)");
+    }
+
+    #[test]
     fn skips_start_when_start_notifications_are_disabled() {
         let mut config = cfg();
         config.notify_on_start = false;
@@ -1461,19 +1353,29 @@ mod tests {
     }
 
     #[test]
-    fn windows_body_activation_opens_target() {
-        assert!(should_open_target_for_windows_activation(None));
-        assert!(should_open_target_for_windows_activation(Some("")));
-        assert!(should_open_target_for_windows_activation(Some(
-            "motrixnext://open-folder?dir=C%3A%5CDownloads"
-        )));
-        assert!(should_open_target_for_windows_activation(Some(
-            "motrixnext://open-folder?path=C%3A%5CDownloads%5Cfile.zip"
-        )));
-        assert!(!should_open_target_for_windows_activation(Some(
-            "motrixnext://open-folder?dir="
-        )));
-        assert!(!should_open_target_for_windows_activation(Some("dismiss")));
+    fn notification_open_dir_signatures_reject_tampering() {
+        let signature = sign_notification_open_dir("test-secret", "C:\\Downloads").unwrap();
+
+        assert!(verify_notification_open_dir_signature(
+            "test-secret",
+            "C:\\Downloads",
+            &signature
+        ));
+        assert!(!verify_notification_open_dir_signature(
+            "test-secret",
+            "C:\\Windows",
+            &signature
+        ));
+        assert!(!verify_notification_open_dir_signature(
+            "other-secret",
+            "C:\\Downloads",
+            &signature
+        ));
+        assert!(!verify_notification_open_dir_signature(
+            "test-secret",
+            "C:\\Downloads",
+            "not-hex"
+        ));
     }
 
     #[test]
@@ -1484,20 +1386,35 @@ mod tests {
             body: "Saved: \"it's here\"".to_string(),
             locale: "en-US",
             click_open_target: Some(TaskNotificationOpenTarget {
-                dir: Some("C:\\Downloads".to_string()),
-                item_path: Some("C:\\Downloads\\file.zip".to_string()),
+                dir: "C:\\Downloads".to_string(),
             }),
             click_show_task_list: false,
         };
 
-        let xml = build_windows_toast_xml(&content);
+        let xml = build_windows_toast_xml(&content, Some("test-secret"));
 
         assert!(xml.contains(r#"activationType="protocol""#));
-        assert!(xml.contains(
-            r#"launch="motrixnext://open-folder?dir=C%3A%5CDownloads&amp;path=C%3A%5CDownloads%5Cfile.zip""#
-        ));
+        assert!(xml.contains(r#"launch="motrixnext://open-folder?dir=C%3A%5CDownloads&amp;sig="#));
         assert!(xml.contains("A&amp;B &lt;done&gt;"));
         assert!(xml.contains("Saved: &quot;it&apos;s here&quot;"));
+    }
+
+    #[test]
+    fn windows_folder_activation_is_disabled_without_a_secret() {
+        let content = TaskNotificationContent {
+            kind: TaskNotificationKind::Complete,
+            title: "Download Complete".to_string(),
+            body: "Saved: file.zip".to_string(),
+            locale: "en-US",
+            click_open_target: Some(TaskNotificationOpenTarget {
+                dir: "C:\\Downloads".to_string(),
+            }),
+            click_show_task_list: false,
+        };
+
+        let xml = build_windows_toast_xml(&content, None);
+
+        assert!(!xml.contains(r#"activationType="protocol""#));
     }
 
     #[test]
@@ -1511,25 +1428,10 @@ mod tests {
             click_show_task_list: true,
         };
 
-        let xml = build_windows_toast_xml(&content);
+        let xml = build_windows_toast_xml(&content, None);
 
         assert!(xml.contains(r#"activationType="protocol""#));
         assert!(xml.contains(r#"launch="motrixnext://show-task-list""#));
-    }
-
-    #[test]
-    fn windows_body_activation_shows_task_list() {
-        assert!(should_show_task_list_for_windows_activation(None));
-        assert!(should_show_task_list_for_windows_activation(Some("")));
-        assert!(should_show_task_list_for_windows_activation(Some(
-            "motrixnext://show-task-list"
-        )));
-        assert!(!should_show_task_list_for_windows_activation(Some(
-            "motrixnext://open-folder?dir=C%3A%5CDownloads"
-        )));
-        assert!(!should_show_task_list_for_windows_activation(Some(
-            "dismiss"
-        )));
     }
 
     #[test]

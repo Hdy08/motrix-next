@@ -342,7 +342,6 @@ export default {
   'task-card-opacity': 'شفافیت کارت وظیفه',
   'sidebar-task-counts': 'شمارنده‌های وظیفه در نوار کناری',
   'task-list-watermark': 'واترمارک فهرست وظایف',
-  'default-background-icon': 'نماد پس‌زمینه پیش‌فرض',
   'custom-background-image': 'تصویر پس‌زمینه سفارشی',
   'clear-background-image': 'پاک کردن تصویر پس‌زمینه',
   'background-image-empty': 'تصویری انتخاب نشده است',

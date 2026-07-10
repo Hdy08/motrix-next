@@ -341,7 +341,6 @@ export default {
   'task-card-opacity': 'Opasitet for oppgavekort',
   'sidebar-task-counts': 'Oppgavetellere i sidepanelet',
   'task-list-watermark': 'Vannmerke for oppgaveliste',
-  'default-background-icon': 'Standard bakgrunnsikon',
   'custom-background-image': 'Egendefinert bakgrunnsbilde',
   'clear-background-image': 'Fjern bakgrunnsbilde',
   'background-image-empty': 'Ingen bilder valgt',

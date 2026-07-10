@@ -340,7 +340,6 @@ export default {
   'task-card-opacity': 'Task card opacity',
   'sidebar-task-counts': 'Sidebar task counts',
   'task-list-watermark': 'Task list watermark',
-  'default-background-icon': 'Default background icon',
   'custom-background-image': 'Custom background image',
   'clear-background-image': 'Clear background image',
   'background-image-empty': 'No image selected',

@@ -337,7 +337,6 @@ export default {
   'task-card-opacity': 'عتامة بطاقة المهمة',
   'sidebar-task-counts': 'عداد مهام الشريط الجانبي',
   'task-list-watermark': 'علامة مائية لقائمة المهام',
-  'default-background-icon': 'أيقونة الخلفية الافتراضية',
   'custom-background-image': 'صورة خلفية مخصصة',
   'clear-background-image': 'مسح صورة الخلفية',
   'background-image-empty': 'لم يتم اختيار صورة',

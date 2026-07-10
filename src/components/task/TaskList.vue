@@ -10,7 +10,7 @@ import type { ComponentPublicInstance } from 'vue'
 import type { SortableEvent, SortableOptions } from 'sortablejs'
 import type { Aria2Task } from '@shared/types'
 import { DEFAULT_APP_CONFIG } from '@shared/constants'
-import { opacityPercentToCssPercent, opacityPercentToCssValue } from '@shared/utils/opacity'
+import { opacityPercentToCssPercent } from '@shared/utils/opacity'
 
 const emit = defineEmits<{
   pause: [task: Aria2Task]
@@ -42,10 +42,6 @@ const taskCardComponent = computed(() =>
   preferenceStore.config.taskCardMode === 'compact' ? TaskCompactItem : TaskItem,
 )
 const taskListStyle = computed<Record<string, string>>(() => ({
-  '--task-card-opacity': opacityPercentToCssValue(
-    preferenceStore.config.taskCardOpacity,
-    DEFAULT_APP_CONFIG.taskCardOpacity,
-  ),
   '--task-card-opacity-percent': opacityPercentToCssPercent(
     preferenceStore.config.taskCardOpacity,
     DEFAULT_APP_CONFIG.taskCardOpacity,

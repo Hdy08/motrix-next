@@ -343,7 +343,6 @@ export default {
   'task-card-opacity': 'Nieprzezroczystość karty zadania',
   'sidebar-task-counts': 'Liczniki zadań na pasku bocznym',
   'task-list-watermark': 'Znak wodny listy zadań',
-  'default-background-icon': 'Domyślna ikona tła',
   'custom-background-image': 'Niestandardowy obraz tła',
   'clear-background-image': 'Wyczyść obraz tła',
   'background-image-empty': 'Nie wybrano obrazu',

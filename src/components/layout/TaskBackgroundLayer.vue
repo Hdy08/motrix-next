@@ -1,9 +1,11 @@
 <script setup lang="ts">
 /** @fileoverview Stable task-list background layer kept outside route transitions. */
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 import { useLocalImageObjectUrl } from '@/composables/useLocalImageObjectUrl'
 import { useTaskBackgroundConfig } from '@/composables/useTaskBackgroundConfig'
+import { logger } from '@shared/logger'
+import { calculateCanvasPixelSize, calculateCoverSourceRect } from '@shared/utils/backgroundCanvas'
 import watermarkDark from '@/assets/logo-bolt-dark.png'
 import watermarkLight from '@/assets/logo-bolt-light.png'
 
@@ -12,17 +14,113 @@ const props = defineProps<{ show: boolean }>()
 const { isDark } = useTheme()
 const taskBackground = useTaskBackgroundConfig()
 const watermarkSrc = computed(() => (isDark.value ? watermarkLight : watermarkDark))
-const customBackgroundImageUrl = useLocalImageObjectUrl(taskBackground.backgroundImagePath)
+const customBackgroundImageUrl = useLocalImageObjectUrl(() =>
+  props.show ? taskBackground.backgroundImagePath.value : '',
+)
 const showCustomBackgroundImage = computed(() => props.show && customBackgroundImageUrl.value.length > 0)
 const showDefaultBackgroundIcon = computed(() => props.show && taskBackground.showDefaultBackgroundIcon.value)
 const showTaskBackground = computed(() => showCustomBackgroundImage.value || showDefaultBackgroundIcon.value)
+const backgroundCanvas = ref<HTMLCanvasElement | null>(null)
 const backgroundLayerStyle = computed(() => ({
   '--task-background-content-opacity': String(taskBackground.backgroundOpacity.value),
   '--task-background-default-icon-opacity': String(taskBackground.defaultIconOpacity.value),
 }))
-const customBackgroundImageStyle = computed(() => ({
-  backgroundImage: customBackgroundImageUrl.value ? `url(${JSON.stringify(customBackgroundImageUrl.value)})` : 'none',
-}))
+
+let decodedBackgroundImage: HTMLImageElement | null = null
+let drawFrameId: number | null = null
+let imageRequestId = 0
+let resizeObserver: ResizeObserver | null = null
+
+function drawBackgroundImage(): void {
+  drawFrameId = null
+  const canvas = backgroundCanvas.value
+  const image = decodedBackgroundImage
+  if (!canvas || !image) return
+
+  const bounds = canvas.getBoundingClientRect()
+  const pixelSize = calculateCanvasPixelSize(bounds.width, bounds.height, window.devicePixelRatio)
+  if (!pixelSize) return
+
+  if (canvas.width !== pixelSize.width || canvas.height !== pixelSize.height) {
+    canvas.width = pixelSize.width
+    canvas.height = pixelSize.height
+  }
+
+  const context = canvas.getContext('2d')
+  const sourceRect = calculateCoverSourceRect(
+    image.naturalWidth,
+    image.naturalHeight,
+    pixelSize.width,
+    pixelSize.height,
+  )
+  if (!context || !sourceRect) return
+
+  context.clearRect(0, 0, pixelSize.width, pixelSize.height)
+  context.imageSmoothingEnabled = true
+  context.imageSmoothingQuality = 'high'
+  context.drawImage(
+    image,
+    sourceRect.x,
+    sourceRect.y,
+    sourceRect.width,
+    sourceRect.height,
+    0,
+    0,
+    pixelSize.width,
+    pixelSize.height,
+  )
+}
+
+function scheduleBackgroundDraw(): void {
+  if (drawFrameId !== null) return
+  drawFrameId = window.requestAnimationFrame(drawBackgroundImage)
+}
+
+watch(
+  customBackgroundImageUrl,
+  (source) => {
+    const requestId = ++imageRequestId
+    decodedBackgroundImage = null
+    if (!source) return
+
+    const image = new Image()
+    image.decoding = 'async'
+    image.onload = () => {
+      if (requestId !== imageRequestId) return
+      decodedBackgroundImage = image
+      scheduleBackgroundDraw()
+    }
+    image.onerror = () => {
+      if (requestId === imageRequestId) {
+        logger.warn('TaskBackgroundLayer.decode', 'Failed to decode custom background image')
+      }
+    }
+    image.src = source
+  },
+  { immediate: true },
+)
+
+watch(backgroundCanvas, (canvas) => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  if (!canvas) return
+
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(scheduleBackgroundDraw)
+    resizeObserver.observe(canvas)
+  }
+  scheduleBackgroundDraw()
+})
+
+onMounted(() => window.addEventListener('resize', scheduleBackgroundDraw))
+
+onBeforeUnmount(() => {
+  imageRequestId += 1
+  decodedBackgroundImage = null
+  resizeObserver?.disconnect()
+  window.removeEventListener('resize', scheduleBackgroundDraw)
+  if (drawFrameId !== null) window.cancelAnimationFrame(drawFrameId)
+})
 </script>
 
 <template>
@@ -36,7 +134,7 @@ const customBackgroundImageStyle = computed(() => ({
   >
     <Transition name="task-background-content">
       <div v-if="showTaskBackground" class="task-background-content">
-        <div v-if="showCustomBackgroundImage" class="task-background-image" :style="customBackgroundImageStyle" />
+        <canvas v-if="showCustomBackgroundImage" ref="backgroundCanvas" class="task-background-image" />
         <img v-else :src="watermarkSrc" alt="" class="task-background-icon" draggable="false" />
       </div>
     </Transition>
@@ -86,12 +184,13 @@ const customBackgroundImageStyle = computed(() => ({
   -webkit-user-drag: none;
 }
 .task-background-image {
+  display: block;
   width: 100%;
   height: 100%;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+  image-rendering: auto;
   opacity: var(--task-background-content-opacity);
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .task-background-content-enter-active,
 .task-background-content-leave-active {

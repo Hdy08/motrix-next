@@ -342,7 +342,6 @@ export default {
   'task-card-opacity': 'Непрозорість картки завдання',
   'sidebar-task-counts': 'Лічильники завдань на бічній панелі',
   'task-list-watermark': 'Водяний знак списку завдань',
-  'default-background-icon': 'Стандартна піктограма фону',
   'custom-background-image': 'Власне фонове зображення',
   'clear-background-image': 'Очистити фонове зображення',
   'background-image-empty': 'Зображення не вибрано',

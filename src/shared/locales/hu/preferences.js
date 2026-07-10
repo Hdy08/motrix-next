@@ -343,7 +343,6 @@ export default {
   'task-card-opacity': 'Feladatkártya átlátszatlansága',
   'sidebar-task-counts': 'Oldalsáv feladatszámlálói',
   'task-list-watermark': 'Feladatlista vízjel',
-  'default-background-icon': 'Alapértelmezett háttérikon',
   'custom-background-image': 'Egyéni háttérkép',
   'clear-background-image': 'Háttérkép törlése',
   'background-image-empty': 'Nincs kiválasztott kép',

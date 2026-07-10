@@ -6,10 +6,8 @@ import {
   ARIA2_LOG_LEVELS,
   PROXY_SCOPE_OPTIONS,
   UPDATE_CHANNELS,
-  BACKGROUND_OPACITY_MIN,
-  BACKGROUND_OPACITY_MAX,
-  UI_CONTROL_OPACITY_MIN,
-  UI_CONTROL_OPACITY_MAX,
+  OPACITY_PERCENT_MIN,
+  OPACITY_PERCENT_MAX,
 } from '@shared/constants'
 import { getAllowedColorSchemeIds, normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 import { runMigrations, type MigrationResult } from '@shared/utils/configMigration'
@@ -110,15 +108,14 @@ function normalizeClampedInteger(
   key: string,
   repairs: string[],
 ): number {
-  const number = Number(value)
-  if (!Number.isFinite(number)) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
     repairs.push(key)
     return fallback
   }
 
-  const integer = Math.round(number)
+  const integer = Math.round(value)
   const clamped = Math.min(max, Math.max(min, integer))
-  if (clamped !== number) repairs.push(key)
+  if (clamped !== value) repairs.push(key)
   return clamped
 }
 
@@ -231,16 +228,16 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
   config.taskCardOpacity = normalizeClampedInteger(
     config.taskCardOpacity,
     DEFAULT_APP_CONFIG.taskCardOpacity,
-    UI_CONTROL_OPACITY_MIN,
-    UI_CONTROL_OPACITY_MAX,
+    OPACITY_PERCENT_MIN,
+    OPACITY_PERCENT_MAX,
     'taskCardOpacity',
     repairs,
   )
   config.taskListSelectedBackgroundOpacity = normalizeClampedInteger(
     config.taskListSelectedBackgroundOpacity,
     DEFAULT_APP_CONFIG.taskListSelectedBackgroundOpacity,
-    UI_CONTROL_OPACITY_MIN,
-    UI_CONTROL_OPACITY_MAX,
+    OPACITY_PERCENT_MIN,
+    OPACITY_PERCENT_MAX,
     'taskListSelectedBackgroundOpacity',
     repairs,
   )
@@ -257,16 +254,16 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
   config.backgroundOpacity = normalizeClampedInteger(
     config.backgroundOpacity,
     DEFAULT_APP_CONFIG.backgroundOpacity,
-    BACKGROUND_OPACITY_MIN,
-    BACKGROUND_OPACITY_MAX,
+    OPACITY_PERCENT_MIN,
+    OPACITY_PERCENT_MAX,
     'backgroundOpacity',
     repairs,
   )
   config.taskPaginationOpacity = normalizeClampedInteger(
     config.taskPaginationOpacity,
     DEFAULT_APP_CONFIG.taskPaginationOpacity,
-    UI_CONTROL_OPACITY_MIN,
-    UI_CONTROL_OPACITY_MAX,
+    OPACITY_PERCENT_MIN,
+    OPACITY_PERCENT_MAX,
     'taskPaginationOpacity',
     repairs,
   )
@@ -279,9 +276,27 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
   config.speedLimitButtonOpacity = normalizeClampedInteger(
     config.speedLimitButtonOpacity,
     DEFAULT_APP_CONFIG.speedLimitButtonOpacity,
-    UI_CONTROL_OPACITY_MIN,
-    UI_CONTROL_OPACITY_MAX,
+    OPACITY_PERCENT_MIN,
+    OPACITY_PERCENT_MAX,
     'speedLimitButtonOpacity',
+    repairs,
+  )
+  config.taskListWatermark = normalizeBoolean(
+    config.taskListWatermark,
+    DEFAULT_APP_CONFIG.taskListWatermark,
+    'taskListWatermark',
+    repairs,
+  )
+  config.openFolderOnNotificationClick = normalizeBoolean(
+    config.openFolderOnNotificationClick,
+    DEFAULT_APP_CONFIG.openFolderOnNotificationClick,
+    'openFolderOnNotificationClick',
+    repairs,
+  )
+  config.openTaskListOnStartNotificationClick = normalizeBoolean(
+    config.openTaskListOnStartNotificationClick,
+    DEFAULT_APP_CONFIG.openTaskListOnStartNotificationClick,
+    'openTaskListOnStartNotificationClick',
     repairs,
   )
   repairEnum(config, 'updateChannel', UPDATE_CHANNELS, DEFAULT_APP_CONFIG.updateChannel, repairs)

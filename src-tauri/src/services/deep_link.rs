@@ -28,12 +28,6 @@ pub struct PendingDeepLinksPayload {
     pub silent: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NotificationOpenTarget {
-    dir: Option<String>,
-    item_path: Option<String>,
-}
-
 impl PendingDeepLinkState {
     pub fn new() -> Self {
         Self(Mutex::new(PendingDeepLinks::default()))
@@ -84,27 +78,30 @@ pub fn filter_external_input_args(args: &[String]) -> Vec<String> {
 /// original in-process toast callback is no longer available. Revealing the
 /// downloaded item here keeps that path native and avoids waking the task UI as
 /// a download input.
+#[cfg(target_os = "windows")]
 pub fn handle_native_action_args(app: &AppHandle, args: &[String], source: &'static str) -> bool {
     let mut handled = false;
     for arg in args {
-        if let Some(target) = notification_open_target_from_url(arg) {
+        if is_notification_open_folder_url(arg) {
             handled = true;
-            match crate::commands::fs::reveal_item_or_open_dir(
-                app,
-                target.item_path.as_deref(),
-                target.dir.as_deref(),
-            ) {
-                Ok(()) => log::info!(
-                    "deep_link:native-action-open-target source={source} item={:?} dir={:?}",
-                    target.item_path,
-                    target.dir
-                ),
-                Err(error) => log::warn!(
-                    "deep_link:native-action-open-target-failed source={source} item={:?} dir={:?} error={error}",
-                    target.item_path,
-                    target.dir
-                ),
-            }
+            let Some(secret) = crate::services::notification::notification_action_secret(app)
+            else {
+                log::warn!(
+                    "deep_link:native-action-rejected source={source} reason=missing-secret"
+                );
+                continue;
+            };
+            let Some(target) = notification_open_target_from_url(arg, &secret) else {
+                log::warn!(
+                    "deep_link:native-action-rejected source={source} reason=invalid-signature"
+                );
+                continue;
+            };
+            crate::services::notification::open_notification_target(app, &target);
+            log::info!(
+                "deep_link:native-action-open-target source={source} dir={:?}",
+                target.dir
+            );
         } else if is_notification_show_task_list_url(arg) {
             handled = true;
             crate::services::frontend_action::dispatch_frontend_action(
@@ -118,7 +115,11 @@ pub fn handle_native_action_args(app: &AppHandle, args: &[String], source: &'sta
     handled
 }
 
-fn notification_open_target_from_url(value: &str) -> Option<NotificationOpenTarget> {
+#[cfg(any(target_os = "windows", test))]
+fn notification_open_target_from_url(
+    value: &str,
+    secret: &str,
+) -> Option<crate::services::notification::TaskNotificationOpenTarget> {
     let parsed = url::Url::parse(value).ok()?;
     if parsed.scheme() != MOTRIX_SCHEME {
         return None;
@@ -133,27 +134,41 @@ fn notification_open_target_from_url(value: &str) -> Option<NotificationOpenTarg
     }
 
     let mut dir = None;
-    let mut item_path = None;
+    let mut signature = None;
     for (key, value) in parsed.query_pairs() {
-        let value = value.trim();
-        if value.is_empty() {
-            continue;
-        }
         match key.as_ref() {
-            "dir" => dir = Some(value.to_string()),
-            "path" => item_path = Some(value.to_string()),
-            _ => {}
+            "dir" if dir.is_none() => dir = Some(value.into_owned()),
+            "sig" if signature.is_none() => signature = Some(value.into_owned()),
+            _ => return None,
         }
     }
 
-    (dir.is_some() || item_path.is_some()).then_some(NotificationOpenTarget { dir, item_path })
+    let dir = dir?.trim().to_string();
+    let signature = signature?;
+    if dir.is_empty()
+        || dir.chars().count() > crate::services::notification::WINDOWS_NOTIFICATION_DIR_MAX_CHARS
+        || !crate::services::notification::verify_notification_open_dir_signature(
+            secret, &dir, &signature,
+        )
+    {
+        return None;
+    }
+
+    Some(crate::services::notification::TaskNotificationOpenTarget { dir })
+}
+
+fn is_notification_open_folder_url(value: &str) -> bool {
+    matches!(
+        motrix_action_from_url(value).as_deref(),
+        Some(NOTIFICATION_OPEN_FOLDER_ACTION)
+    )
 }
 
 fn is_notification_show_task_list_url(value: &str) -> bool {
-    let Some(action) = motrix_action_from_url(value) else {
-        return false;
-    };
-    action == NOTIFICATION_SHOW_TASK_LIST_ACTION
+    matches!(
+        motrix_action_from_url(value).as_deref(),
+        Some(NOTIFICATION_SHOW_TASK_LIST_ACTION)
+    )
 }
 
 fn motrix_action_from_url(value: &str) -> Option<String> {
@@ -342,8 +357,18 @@ mod tests {
     use super::{
         append_unique_pending, filter_external_input_args, is_autostart_arg_launch,
         is_notification_show_task_list_url, notification_open_target_from_url,
-        take_pending_deep_links, NotificationOpenTarget, PendingDeepLinkState,
+        take_pending_deep_links, PendingDeepLinkState,
     };
+    use crate::services::notification::{sign_notification_open_dir, TaskNotificationOpenTarget};
+
+    fn signed_open_folder_url(dir: &str, secret: &str) -> String {
+        let signature = sign_notification_open_dir(secret, dir).expect("sign notification action");
+        let mut url = url::Url::parse("motrixnext://open-folder").expect("parse static action URL");
+        url.query_pairs_mut()
+            .append_pair("dir", dir)
+            .append_pair("sig", &signature);
+        url.to_string()
+    }
 
     #[test]
     fn filters_supported_external_inputs_from_argv() {
@@ -386,37 +411,31 @@ mod tests {
 
     #[test]
     fn parses_notification_open_folder_action_url() {
+        let secret = "test-secret";
+        let url = signed_open_folder_url("C:\\Downloads", secret);
+
         assert_eq!(
-            notification_open_target_from_url(
-                "motrixnext://open-folder?dir=C%3A%5CDownloads&path=C%3A%5CDownloads%5Cfile.zip"
-            ),
-            Some(NotificationOpenTarget {
-                dir: Some("C:\\Downloads".to_string()),
-                item_path: Some("C:\\Downloads\\file.zip".to_string()),
+            notification_open_target_from_url(&url, secret),
+            Some(TaskNotificationOpenTarget {
+                dir: "C:\\Downloads".to_string(),
             })
         );
-        assert_eq!(
-            notification_open_target_from_url("motrixnext:/open-folder?dir=D%3A%5CMedia"),
-            Some(NotificationOpenTarget {
-                dir: Some("D:\\Media".to_string()),
-                item_path: None,
-            })
-        );
-        assert_eq!(
-            notification_open_target_from_url("motrixnext://open-folder?path=D%3A%5CMedia%5Ca.bin"),
-            Some(NotificationOpenTarget {
-                dir: None,
-                item_path: Some("D:\\Media\\a.bin".to_string()),
-            })
-        );
-        assert_eq!(
-            notification_open_target_from_url("motrixnext://open-folder?dir="),
-            None
-        );
-        assert_eq!(
-            notification_open_target_from_url("motrixnext://new?url=https%3A%2F%2Fexample.com"),
-            None
-        );
+        assert!(notification_open_target_from_url(&url, "wrong-secret").is_none());
+        assert!(notification_open_target_from_url(
+            "motrixnext://open-folder?dir=C%3A%5CDownloads",
+            secret
+        )
+        .is_none());
+        assert!(notification_open_target_from_url(
+            "motrixnext://open-folder?dir=C%3A%5CDownloads&dir=D%3A%5CMedia&sig=00",
+            secret
+        )
+        .is_none());
+        assert!(notification_open_target_from_url(
+            "motrixnext://new?url=https%3A%2F%2Fexample.com",
+            secret
+        )
+        .is_none());
     }
 
     #[test]

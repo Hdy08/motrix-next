@@ -343,7 +343,6 @@ export default {
   'task-card-opacity': 'Opacitatea cardului de activitate',
   'sidebar-task-counts': 'Contoare de sarcini în bara laterală',
   'task-list-watermark': 'Filigran listă de sarcini',
-  'default-background-icon': 'Pictogramă de fundal implicită',
   'custom-background-image': 'Imagine de fundal personalizată',
   'clear-background-image': 'Șterge imaginea de fundal',
   'background-image-empty': 'Nu a fost selectată nicio imagine',

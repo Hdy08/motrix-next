@@ -346,7 +346,6 @@ export default {
   'task-card-opacity': 'Opacità della scheda attività',
   'sidebar-task-counts': 'Conteggi attività nella barra laterale',
   'task-list-watermark': 'Filigrana elenco attività',
-  'default-background-icon': 'Icona di sfondo predefinita',
   'custom-background-image': 'Immagine di sfondo personalizzata',
   'clear-background-image': 'Cancella immagine di sfondo',
   'background-image-empty': 'Nessuna immagine selezionata',

@@ -341,7 +341,6 @@ export default {
   'task-card-opacity': 'タスクカードの不透明度',
   'sidebar-task-counts': 'サイドバーのタスク数',
   'task-list-watermark': 'タスクリストの透かし',
-  'default-background-icon': '既定の背景アイコン',
   'custom-background-image': 'カスタム背景画像',
   'clear-background-image': '背景画像をクリア',
   'background-image-empty': '画像が選択されていません',

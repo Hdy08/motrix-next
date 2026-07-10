@@ -49,7 +49,7 @@ trash = "5"
 dunce = "1"
 os_info = "3"
 sys-locale = "0.3"
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
 rfd = { version = "0.16", default-features = false }
 maxminddb = { version = "0.27", features = ["mmap"] }
 axum = "0.8"
@@ -62,16 +62,13 @@ content_disposition = "0.4"
 rfc2047-decoder = "1.1"
 strip-ansi-escapes = "0.2.1"
 tempfile = "3"
+hmac = "0.12"
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
-tauri-winrt-notification = "0.7"
 windows = { version = "0.56", features = [
     "Data_Xml_Dom",
-    "Foundation",
     "UI_Notifications",
-    "Win32_Foundation",
-    "Win32_System_Com",
-    "Win32_UI_Shell",
 ] }
 windows-sys = { version = "0.59", features = [
     "Win32_Graphics_Dwm",

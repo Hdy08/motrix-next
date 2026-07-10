@@ -331,7 +331,6 @@ export default {
   'task-card-opacity': '任務卡片不透明度',
   'sidebar-task-counts': '側邊欄任務計數',
   'task-list-watermark': '任務列表水印',
-  'default-background-icon': '預設背景圖示',
   'custom-background-image': '自訂背景圖片',
   'clear-background-image': '清除背景圖片',
   'background-image-empty': '未選擇圖片',

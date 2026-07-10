@@ -339,7 +339,6 @@ export default {
   'task-card-opacity': 'Độ mờ của thẻ tác vụ',
   'sidebar-task-counts': 'Bộ đếm tác vụ ở thanh bên',
   'task-list-watermark': 'Hình mờ danh sách tác vụ',
-  'default-background-icon': 'Biểu tượng nền mặc định',
   'custom-background-image': 'Ảnh nền tùy chỉnh',
   'clear-background-image': 'Xóa ảnh nền',
   'background-image-empty': 'Chưa chọn ảnh',

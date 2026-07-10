@@ -67,12 +67,12 @@ describe('useLocalImageObjectUrl', () => {
   })
 
   it('loads a local image through Rust IPC and exposes an object URL', async () => {
-    invokeMock.mockResolvedValue([1, 2, 3])
+    invokeMock.mockResolvedValue(Uint8Array.from([1, 2, 3]).buffer)
 
     const { imageUrl } = mountHarness('C:\\Users\\me\\Pictures\\background.png')
     await flushPromises()
 
-    expect(invokeMock).toHaveBeenCalledWith('read_local_file', {
+    expect(invokeMock).toHaveBeenCalledWith('read_local_image', {
       path: 'C:\\Users\\me\\Pictures\\background.png',
     })
     expect(createObjectURLMock).toHaveBeenCalledTimes(1)
@@ -84,7 +84,7 @@ describe('useLocalImageObjectUrl', () => {
   })
 
   it('revokes the active object URL when the path is cleared', async () => {
-    invokeMock.mockResolvedValue([1, 2, 3])
+    invokeMock.mockResolvedValue(Uint8Array.from([1, 2, 3]).buffer)
 
     const { imagePath, imageUrl } = mountHarness('C:\\Users\\me\\Pictures\\background.webp')
     await flushPromises()
@@ -97,15 +97,15 @@ describe('useLocalImageObjectUrl', () => {
   })
 
   it('does not expose stale object URLs when paths change during loading', async () => {
-    let resolveFirst!: (value: number[]) => void
+    let resolveFirst!: (value: ArrayBuffer) => void
     invokeMock
       .mockImplementationOnce(
         () =>
-          new Promise<number[]>((resolve) => {
+          new Promise<ArrayBuffer>((resolve) => {
             resolveFirst = resolve
           }),
       )
-      .mockResolvedValueOnce([4, 5, 6])
+      .mockResolvedValueOnce(Uint8Array.from([4, 5, 6]).buffer)
 
     const { imagePath, imageUrl } = mountHarness('C:\\Users\\me\\Pictures\\old.png')
     imagePath.value = 'C:\\Users\\me\\Pictures\\new.jpg'
@@ -114,15 +114,16 @@ describe('useLocalImageObjectUrl', () => {
 
     expect(imageUrl.value).toBe('blob:background-1')
 
-    resolveFirst([1, 2, 3])
+    resolveFirst(Uint8Array.from([1, 2, 3]).buffer)
     await flushPromises()
 
     expect(imageUrl.value).toBe('blob:background-1')
-    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:background-2')
+    expect(createObjectURLMock).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURLMock).not.toHaveBeenCalled()
   })
 
   it('revokes the active object URL on unmount', async () => {
-    invokeMock.mockResolvedValue([1, 2, 3])
+    invokeMock.mockResolvedValue(Uint8Array.from([1, 2, 3]).buffer)
 
     const { unmount } = mountHarness('C:\\Users\\me\\Pictures\\background.gif')
     await flushPromises()
@@ -130,5 +131,15 @@ describe('useLocalImageObjectUrl', () => {
     unmount()
 
     expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:background-1')
+  })
+
+  it('logs image load failures without retaining a stale URL', async () => {
+    invokeMock.mockRejectedValue(new Error('image too large'))
+
+    const { imageUrl } = mountHarness('C:\\Users\\me\\Pictures\\background.png')
+    await flushPromises()
+
+    expect(imageUrl.value).toBe('')
+    expect(warnMock).toHaveBeenCalledWith('LocalImageObjectUrl.load', 'image too large')
   })
 })

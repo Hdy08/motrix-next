@@ -346,7 +346,6 @@ export default {
   'task-card-opacity': 'Αδιαφάνεια κάρτας εργασίας',
   'sidebar-task-counts': 'Μετρητές εργασιών πλευρικής γραμμής',
   'task-list-watermark': 'Υδατογράφημα λίστας εργασιών',
-  'default-background-icon': 'Προεπιλεγμένο εικονίδιο φόντου',
   'custom-background-image': 'Προσαρμοσμένη εικόνα φόντου',
   'clear-background-image': 'Εκκαθάριση εικόνας φόντου',
   'background-image-empty': 'Δεν επιλέχθηκε εικόνα',

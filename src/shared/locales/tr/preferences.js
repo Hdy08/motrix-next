@@ -343,7 +343,6 @@ export default {
   'task-card-opacity': 'Görev kartı opaklığı',
   'sidebar-task-counts': 'Kenar çubuğu görev sayıları',
   'task-list-watermark': 'Görev listesi filigranı',
-  'default-background-icon': 'Varsayılan arka plan simgesi',
   'custom-background-image': 'Özel arka plan görseli',
   'clear-background-image': 'Arka plan görselini temizle',
   'background-image-empty': 'Görsel seçilmedi',

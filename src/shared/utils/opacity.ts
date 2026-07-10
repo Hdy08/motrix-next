@@ -1,14 +1,13 @@
-import { UI_CONTROL_OPACITY_MAX, UI_CONTROL_OPACITY_MIN } from '@shared/constants'
+import { OPACITY_PERCENT_MAX, OPACITY_PERCENT_MIN } from '@shared/constants'
 
 export function normalizeOpacityPercent(
   value: unknown,
   fallback: number,
-  min = UI_CONTROL_OPACITY_MIN,
-  max = UI_CONTROL_OPACITY_MAX,
+  min = OPACITY_PERCENT_MIN,
+  max = OPACITY_PERCENT_MAX,
 ): number {
-  const opacity = Number(value)
-  if (!Number.isFinite(opacity)) return fallback
-  return Math.min(max, Math.max(min, Math.round(opacity)))
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, Math.round(value)))
 }
 
 export function opacityPercentToCssValue(value: unknown, fallback: number): string {

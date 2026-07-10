@@ -346,7 +346,6 @@ export default {
   'task-card-opacity': 'Opacitat de la targeta de tasca',
   'sidebar-task-counts': 'Comptadors de tasques a la barra lateral',
   'task-list-watermark': 'Marca d\'aigua de la llista de tasques',
-  'default-background-icon': 'Icona de fons predeterminada',
   'custom-background-image': 'Imatge de fons personalitzada',
   'clear-background-image': 'Esborra la imatge de fons',
   'background-image-empty': 'Cap imatge seleccionada',
