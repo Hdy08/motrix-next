@@ -16,10 +16,10 @@ import {
   DEFAULT_APP_CONFIG as D,
 } from '@shared/constants'
 import { generateRandomInt } from '@shared/utils'
-import { isValidAria2ProxyUrl, UNSUPPORTED_PROXY_SCHEME_RE } from '@shared/utils/aria2Proxy'
-import { buildDownloadProxyOptions, normalizeProxyMode, type EngineProxyMode } from '@shared/utils/proxyPolicy'
+import { isValidAria2ProxyUrl, UNSUPPORTED_PROXY_SCHEME_RE } from '@shared/utils/proxy'
+import { buildDownloadProxyOptions, normalizeProxyMode, type EngineProxyMode } from '@shared/utils/proxy'
 
-export { isValidAria2ProxyUrl } from '@shared/utils/aria2Proxy'
+export { isValidAria2ProxyUrl } from '@shared/utils/proxy'
 
 // ── Types ───────────────────────────────────────────────────────────
 

@@ -8,20 +8,23 @@ export interface ImageSourceRect extends CanvasPixelSize {
   y: number
 }
 
-export const MAX_BACKGROUND_CANVAS_PIXELS = 16 * 1024 * 1024
-export const MAX_BACKGROUND_DEVICE_PIXEL_RATIO = 2
+// A 24 Mi-pixel RGBA backing store costs about 96 MiB. This retains native
+// detail on common high-DPI displays while bounding renderer/GPU memory.
+export const MAX_BACKGROUND_CANVAS_PIXELS = 24 * 1024 * 1024
 
 export function calculateCanvasPixelSize(
   cssWidth: number,
   cssHeight: number,
   devicePixelRatio: number,
 ): CanvasPixelSize | null {
-  if (cssWidth <= 0 || cssHeight <= 0) return null
+  if (!Number.isFinite(cssWidth) || !Number.isFinite(cssHeight) || cssWidth <= 0 || cssHeight <= 0) return null
+  const cssPixelCount = cssWidth * cssHeight
+  if (!Number.isFinite(cssPixelCount)) return null
 
-  const pixelRatio = Math.min(
-    MAX_BACKGROUND_DEVICE_PIXEL_RATIO,
-    Math.max(1, Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1),
-  )
+  const requestedPixelRatio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1
+  // Do not hard-cap DPR: a 3x/4x display should remain sharp whenever its
+  // backing store fits the bounded pixel budget.
+  const pixelRatio = Math.max(1, Math.min(requestedPixelRatio, Math.sqrt(MAX_BACKGROUND_CANVAS_PIXELS / cssPixelCount)))
   let width = Math.max(1, Math.round(cssWidth * pixelRatio))
   let height = Math.max(1, Math.round(cssHeight * pixelRatio))
   const pixelCount = width * height

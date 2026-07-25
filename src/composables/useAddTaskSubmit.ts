@@ -35,6 +35,7 @@ import type {
   ExternalDownloadContext,
   FileCategory,
   ProxyConfig,
+  TaskStartNotificationTask,
 } from '@shared/types'
 import { isMagnetUri } from '@/composables/useMagnetFlow'
 import {
@@ -45,10 +46,10 @@ import {
 } from '@shared/utils/headerSanitize'
 import { summarizeHeaderForwarding } from '@shared/utils/externalInputDiagnostics'
 import { getErrorMessage } from '@shared/utils/errorMessage'
-import { buildTaskProxyOptions, getDownloadProxy, type TaskProxyMode } from '@shared/utils/proxyPolicy'
+import { buildTaskProxyOptions, getDownloadProxy, type TaskProxyMode } from '@shared/utils/proxy'
 import { resolveUserAgentFromContext } from '@shared/utils/userAgentPolicy'
 
-export { getDownloadProxy } from '@shared/utils/proxyPolicy'
+export { getDownloadProxy } from '@shared/utils/proxy'
 
 export interface AddTaskForm {
   uris: string
@@ -89,7 +90,11 @@ export interface MagnetSubmitFailure {
 
 export interface ManualUriSubmitResult {
   submittedTaskNames: string[]
+  /** Submitted non-magnet tasks paired with their aria2 GIDs. */
+  submittedTasks?: TaskStartNotificationTask[]
   magnetGids: string[]
+  /** Submitted magnets paired with their metadata GIDs and source URIs. */
+  magnetTasks?: Array<TaskStartNotificationTask & { uri: string }>
   magnetFailures: MagnetSubmitFailure[]
 }
 
@@ -207,6 +212,7 @@ export async function submitBatchItems(
   items: BatchItem[],
   options: Aria2EngineOptions,
   taskStore: ReturnType<typeof useTaskStore>,
+  onSubmitted?: (task: TaskStartNotificationTask) => void,
 ): Promise<number> {
   let failures = 0
   for (const item of items) {
@@ -229,7 +235,8 @@ export async function submitBatchItems(
         if (item.source && item.torrentMeta?.infoHash) {
           taskStore.registerTorrentSource(item.torrentMeta.infoHash, item.source)
         }
-        await taskStore.addTorrent({ torrent: item.payload, options: opts })
+        const gid = await taskStore.addTorrent({ torrent: item.payload, options: opts })
+        onSubmitted?.({ name: item.displayName, gid })
       }
       item.status = 'submitted'
       logger.info('submitBatchItems', `${item.kind} submitted: ${item.displayName}`)
@@ -257,7 +264,9 @@ export async function submitManualUris(
   fileCategory?: { enabled: boolean; categories: FileCategory[] },
   downloadProxy?: string,
 ): Promise<ManualUriSubmitResult> {
-  if (!form.uris.trim()) return { submittedTaskNames: [], magnetGids: [], magnetFailures: [] }
+  if (!form.uris.trim()) {
+    return { submittedTaskNames: [], submittedTasks: [], magnetGids: [], magnetTasks: [], magnetFailures: [] }
+  }
   const parsedInput = parseAria2Input(form.uris)
   const allUris = parsedInput.entries.flatMap((entry) => entry.uris)
   logger.info(
@@ -285,6 +294,7 @@ export async function submitManualUris(
     ? { ...fileCategory, contexts: form.uriRequestContexts ?? {} }
     : undefined
   const submittedTaskNames: string[] = []
+  const submittedTasks: TaskStartNotificationTask[] = []
 
   // Submit regular URIs using the existing path
   if (regularUris.length > 0) {
@@ -299,23 +309,27 @@ export async function submitManualUris(
         const ext = dotIdx > 0 ? form.out.substring(dotIdx) : ''
         outs = regularUris.map((_, i) => `${base}_${i + 1}${ext}`)
       }
-      await taskStore.addUri({
+      const gids = await taskStore.addUri({
         uris: regularUris,
         outs,
         options: regularOptions,
         fileCategory: fileCategoryWithContexts,
       })
-      submittedTaskNames.push(...regularUris.map((uri, index) => resolveSubmittedTaskName(uri, outs[index])))
+      const names = regularUris.map((uri, index) => resolveSubmittedTaskName(uri, outs[index]))
+      submittedTaskNames.push(...names)
+      appendSubmittedTasks(submittedTasks, names, gids)
     } else {
       const contextEntries = form.uriRequestContexts ?? {}
       for (const entry of regularEntries) {
         if (entry.uris.length > 1) {
-          await taskStore.addUriAtomic({
+          const gid = await taskStore.addUriAtomic({
             uris: entry.uris,
             options: entry.options,
           })
           const out = getScalarOption(entry.options, 'out')
-          submittedTaskNames.push(...entry.uris.map((uri) => resolveSubmittedTaskName(uri, out)))
+          const name = resolveSubmittedTaskName(entry.uris[0] ?? '', out)
+          submittedTaskNames.push(name)
+          appendSubmittedTasks(submittedTasks, [name], [gid])
           continue
         }
 
@@ -350,16 +364,17 @@ export async function submitManualUris(
         )
 
         const hasPerUriContext = entry.uris.some((uri) => contextEntries[uri])
+        let gids: string[]
         if (hasPerUriContext) {
           const uri = entry.uris[0]
-          await taskStore.addUri({
+          gids = await taskStore.addUri({
             uris: [uri],
             outs: [outs[0] ?? ''],
             options: mergeAria2InputOptions(buildEngineOptions(form, contextEntries[uri]), entry.options),
             fileCategory: fileCategoryWithContexts,
           })
         } else {
-          await taskStore.addUri({
+          gids = await taskStore.addUri({
             uris: entry.uris,
             outs,
             options: entry.options,
@@ -367,21 +382,27 @@ export async function submitManualUris(
           })
         }
         const out = getScalarOption(entry.options, 'out')
-        submittedTaskNames.push(...entry.uris.map((uri, index) => resolveSubmittedTaskName(uri, out || outs[index])))
+        const names = entry.uris.map((uri, index) => resolveSubmittedTaskName(uri, out || outs[index]))
+        submittedTaskNames.push(...names)
+        appendSubmittedTasks(submittedTasks, names, gids)
       }
     }
   }
 
   // Submit magnet URIs (normal mode — global pause-metadata controls pausing)
+  const magnetTasks: Array<TaskStartNotificationTask & { uri: string }> = []
   const result: ManualUriSubmitResult = {
     submittedTaskNames,
+    submittedTasks,
     magnetGids: [],
+    magnetTasks,
     magnetFailures: [],
   }
   for (const uri of magnetUris) {
     try {
       const gid = await taskStore.addMagnetUri({ uri, options })
       result.magnetGids.push(gid)
+      magnetTasks.push({ name: '', gid, uri })
     } catch (e) {
       logger.error('submitManualUris.magnet', e)
       result.magnetFailures.push({
@@ -392,6 +413,13 @@ export async function submitManualUris(
   }
 
   return result
+}
+
+function appendSubmittedTasks(target: TaskStartNotificationTask[], names: string[], gids: string[]): void {
+  for (const [index, name] of names.entries()) {
+    const gid = gids[index]?.trim()
+    target.push(gid ? { name, gid } : { name })
+  }
 }
 
 function resolveSubmittedTaskName(uri: string, outHint?: string): string {
@@ -422,10 +450,11 @@ export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
     try {
       const options = buildEngineOptions(form.value)
       const batch = appStore.pendingBatch
+      const batchSubmittedTasks: TaskStartNotificationTask[] = []
       let manualResult: ManualUriSubmitResult = { submittedTaskNames: [], magnetGids: [], magnetFailures: [] }
 
       if (batch.length > 0) {
-        await submitBatchItems(batch, options, taskStore)
+        await submitBatchItems(batch, options, taskStore, (task) => batchSubmittedTasks.push(task))
       }
       if (form.value.uris.trim()) {
         manualResult = await submitManualUris(
@@ -452,20 +481,24 @@ export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
         onClose()
 
         // ── Start notification (aggregated) ──────────────────────
-        const taskNames: string[] = []
-        for (const item of batch) {
-          if (item.status === 'submitted') {
-            taskNames.push(item.displayName)
-          }
-        }
-        taskNames.push(...manualResult.submittedTaskNames)
+        const startedTasks: TaskStartNotificationTask[] = [
+          ...batchSubmittedTasks,
+          ...(manualResult.submittedTasks ?? manualResult.submittedTaskNames.map((name) => ({ name }))),
+        ]
         const allUris = normalizeUriLines(form.value.uris)
         const magnetUris = allUris.filter(isMagnetUri)
-        for (let i = 0; i < manualResult.magnetGids.length; i++) {
-          const dn = magnetUris[i] ? extractMagnetDisplayName(magnetUris[i]) : ''
-          taskNames.push(dn || t('task.magnet-task'))
+        const magnetTasks =
+          manualResult.magnetTasks ??
+          manualResult.magnetGids.map((gid, index) => ({
+            name: magnetUris[index] ?? '',
+            gid,
+            uri: magnetUris[index] ?? '',
+          }))
+        for (const task of magnetTasks) {
+          const dn = extractMagnetDisplayName(task.uri)
+          startedTasks.push({ name: dn || t('task.magnet-task'), gid: task.gid })
         }
-        handleTaskStart(taskNames, {
+        handleTaskStart(startedTasks, {
           messageInfo: message.info,
           t,
         })

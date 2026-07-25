@@ -195,6 +195,17 @@ pub struct TaskNotificationContent {
     pub click_show_task_list: bool,
 }
 
+/// A submitted task identity supplied by the frontend with a start notification.
+/// GIDs are stable for regular downloads and let Windows remove the exact start
+/// toast even when aria2 later resolves a different display name.
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskStartNotificationTask {
+    pub name: String,
+    #[serde(default)]
+    pub gid: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NotificationDispatchResult {
     #[cfg(not(target_os = "linux"))]
@@ -466,19 +477,57 @@ pub fn build_task_start_notification(
     })
 }
 
-pub fn send_task_start_notification_from_names(
+fn normalized_start_notification_tasks(
+    task_names: &[String],
+    tasks: &[TaskStartNotificationTask],
+) -> Vec<TaskStartNotificationTask> {
+    let source = if tasks.is_empty() {
+        task_names
+            .iter()
+            .map(|name| TaskStartNotificationTask {
+                name: name.clone(),
+                gid: None,
+            })
+            .collect::<Vec<_>>()
+    } else {
+        tasks.to_vec()
+    };
+
+    source
+        .into_iter()
+        .filter_map(|task| {
+            let name = task.name.trim();
+            (!name.is_empty()).then(|| TaskStartNotificationTask {
+                name: name.to_string(),
+                gid: task.gid.and_then(|gid| {
+                    let gid = gid.trim();
+                    (!gid.is_empty()).then(|| gid.to_string())
+                }),
+            })
+        })
+        .collect()
+}
+
+pub fn send_task_start_notification(
     app: &tauri::AppHandle,
     task_names: &[String],
+    tasks: &[TaskStartNotificationTask],
     config: &RuntimeConfig,
 ) -> Result<bool, AppError> {
+    let tasks = normalized_start_notification_tasks(task_names, tasks);
+
     #[cfg(target_os = "windows")]
     {
-        send_windows_task_start_notifications_from_names(app, task_names, config)
+        send_windows_task_start_notifications(app, &tasks, config)
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let Some(content) = build_task_start_notification(task_names, config) else {
+        let task_names = tasks
+            .iter()
+            .map(|task| task.name.clone())
+            .collect::<Vec<_>>();
+        let Some(content) = build_task_start_notification(&task_names, config) else {
             log::debug!("notification:skip reason=preference-disabled type=Start");
             return Ok(false);
         };
@@ -495,9 +544,9 @@ pub fn send_task_start_notification_from_names(
 }
 
 #[cfg(target_os = "windows")]
-fn send_windows_task_start_notifications_from_names(
+fn send_windows_task_start_notifications(
     app: &tauri::AppHandle,
-    task_names: &[String],
+    tasks: &[TaskStartNotificationTask],
     config: &RuntimeConfig,
 ) -> Result<bool, AppError> {
     if !notification_enabled(TaskNotificationKind::Start, config) {
@@ -505,23 +554,21 @@ fn send_windows_task_start_notifications_from_names(
         return Ok(false);
     }
 
-    let task_names = task_names
-        .iter()
-        .map(|name| name.trim())
-        .filter(|name| !name.is_empty())
-        .collect::<Vec<_>>();
-    let attempted = task_names.len().min(WINDOWS_START_NOTIFICATION_LIMIT);
+    let attempted = tasks.len().min(WINDOWS_START_NOTIFICATION_LIMIT);
     let mut submitted = 0usize;
     let mut first_error = None;
-    for task_name in task_names.iter().take(attempted) {
-        let Some(content) = build_task_start_notification(&[task_name.to_string()], config) else {
+    for task in tasks.iter().take(attempted) {
+        let Some(content) = build_task_start_notification(std::slice::from_ref(&task.name), config)
+        else {
             continue;
         };
-        match show_windows_start_notification(app, &content, task_name) {
+        let notification_key = task.gid.as_deref().unwrap_or(&task.name);
+        match show_windows_start_notification(app, &content, notification_key) {
             Ok(()) => submitted += 1,
             Err(error) => {
                 log::warn!(
-                    "notification:windows-start-submit-failed task_name={task_name:?} error={error}"
+                    "notification:windows-start-submit-failed task_name={:?} error={error}",
+                    task.name
                 );
                 if first_error.is_none() {
                     first_error = Some(error);
@@ -545,11 +592,11 @@ fn send_windows_task_start_notifications_from_names(
             attempted - submitted
         );
     }
-    if task_names.len() > attempted {
+    if tasks.len() > attempted {
         log::warn!(
             "notification:windows-start-truncated submitted={} omitted={} limit={}",
             submitted,
-            task_names.len() - attempted,
+            tasks.len() - attempted,
             WINDOWS_START_NOTIFICATION_LIMIT
         );
     }
@@ -595,7 +642,7 @@ pub fn send_task_notification(
     };
 
     #[cfg(target_os = "windows")]
-    remove_windows_start_notification_for_completed_task(app, kind, &event.name);
+    remove_windows_start_notification_for_completed_task(app, kind, event);
 
     let Some(content) = build_task_notification(event_name, event, config) else {
         log::debug!(
@@ -808,9 +855,9 @@ fn show_windows_notification(
 fn show_windows_start_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
-    task_name: &str,
+    task_key: &str,
 ) -> Result<(), String> {
-    let tag = windows_start_notification_tag(task_name);
+    let tag = windows_start_notification_tag(task_key);
     show_windows_notification(
         app,
         content,
@@ -819,7 +866,7 @@ fn show_windows_start_notification(
     )?;
 
     log::debug!(
-        "notification:windows-start-submitted tag={} task_name={task_name:?} clickable={}",
+        "notification:windows-start-submitted tag={} task_key={task_key:?} clickable={}",
         tag,
         content.click_show_task_list
     );
@@ -830,7 +877,7 @@ fn show_windows_start_notification(
 fn remove_windows_start_notification_for_completed_task(
     app: &tauri::AppHandle,
     kind: TaskNotificationKind,
-    task_name: &str,
+    event: &TaskEvent,
 ) {
     if !matches!(
         kind,
@@ -839,30 +886,44 @@ fn remove_windows_start_notification_for_completed_task(
         return;
     }
 
-    let task_name = task_name.trim();
-    if task_name.is_empty() {
-        return;
-    }
-
     let app_id = windows_notification_app_id(app);
-    let tag = windows_start_notification_tag(task_name);
-    match ToastNotificationManager::History()
-        .and_then(|history| {
+    for task_key in windows_start_notification_keys_for_completed_task(event) {
+        let tag = windows_start_notification_tag(&task_key);
+        match ToastNotificationManager::History().and_then(|history| {
             history.RemoveGroupedTagWithId(
                 &HSTRING::from(&tag),
                 &HSTRING::from(WINDOWS_START_NOTIFICATION_GROUP),
                 &HSTRING::from(&app_id),
             )
         }) {
-        Ok(()) => log::debug!(
-            "notification:windows-start-removed tag={} task_name={task_name:?}",
-            tag
-        ),
-        Err(error) => log::warn!(
-            "notification:windows-start-remove-failed tag={} task_name={task_name:?} error={error:?}",
-            tag
-        ),
+            Ok(()) => log::debug!(
+                "notification:windows-start-removed tag={} task_key={task_key:?}",
+                tag
+            ),
+            Err(error) => log::warn!(
+                "notification:windows-start-remove-failed tag={} task_key={task_key:?} error={error:?}",
+                tag
+            ),
+        }
     }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_start_notification_keys_for_completed_task(event: &TaskEvent) -> Vec<String> {
+    let mut keys = Vec::with_capacity(3);
+    for value in [
+        Some(event.gid.as_str()),
+        event.following.as_deref(),
+        Some(event.name.as_str()),
+    ] {
+        let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+            continue;
+        };
+        if !keys.iter().any(|key| key == value) {
+            keys.push(value.to_string());
+        }
+    }
+    keys
 }
 
 #[cfg(target_os = "windows")]
@@ -1121,6 +1182,7 @@ mod tests {
             is_bt: false,
             is_ed2k: false,
             sharing_kind: None,
+            following: None,
             files: vec![crate::services::monitor::TaskEventFile {
                 path: "/tmp/file.zip".to_string(),
                 length: "1".to_string(),
@@ -1353,6 +1415,38 @@ mod tests {
     }
 
     #[test]
+    fn start_notification_tasks_preserve_gids_and_trim_legacy_names() {
+        let tasks = normalized_start_notification_tasks(
+            &[" legacy.zip ".to_string()],
+            &[
+                TaskStartNotificationTask {
+                    name: "  renamed.zip ".to_string(),
+                    gid: Some(" gid-123 ".to_string()),
+                },
+                TaskStartNotificationTask {
+                    name: " ".to_string(),
+                    gid: Some("ignored".to_string()),
+                },
+            ],
+        );
+
+        assert_eq!(
+            tasks,
+            vec![TaskStartNotificationTask {
+                name: "renamed.zip".to_string(),
+                gid: Some("gid-123".to_string()),
+            }]
+        );
+        assert_eq!(
+            normalized_start_notification_tasks(&[" legacy.zip ".to_string()], &[]),
+            vec![TaskStartNotificationTask {
+                name: "legacy.zip".to_string(),
+                gid: None,
+            }]
+        );
+    }
+
+    #[test]
     fn notification_open_dir_signatures_reject_tampering() {
         let signature = sign_notification_open_dir("test-secret", "C:\\Downloads").unwrap();
 
@@ -1444,6 +1538,22 @@ mod tests {
         assert_ne!(
             windows_start_notification_tag("file.zip"),
             windows_start_notification_tag("other.zip")
+        );
+    }
+
+    #[test]
+    fn windows_completion_notification_keys_include_following_metadata_gid() {
+        let mut completion = event();
+        completion.gid = "child-gid".to_string();
+        completion.following = Some("metadata-gid".to_string());
+
+        assert_eq!(
+            windows_start_notification_keys_for_completed_task(&completion),
+            vec![
+                "child-gid".to_string(),
+                "metadata-gid".to_string(),
+                "file.zip".to_string(),
+            ]
         );
     }
 

@@ -301,7 +301,7 @@ const { restartEngine } = useEngineRestart()
 function handleManualRestart() {
   const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
   const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.warning({
+  const d = dialog.info({
     title: t('preferences.engine-restart-title'),
     content: t('preferences.engine-restart-manual-confirm'),
     positiveText: t('preferences.engine-restart-now'),

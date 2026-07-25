@@ -1,7 +1,9 @@
+/** @fileoverview Proxy policy: mode normalization, URL building/validation,
+ * scope checks, and aria2 engine option assembly. */
 import { PROXY_SCOPES } from '@shared/constants'
 import type { Aria2EngineOptions, ProxyConfig } from '@shared/types'
-import { isValidAria2ProxyUrl } from '@shared/utils/aria2Proxy'
-import { hasProxyScope } from '@shared/utils/proxyUrl'
+
+// ── Modes ───────────────────────────────────────────────────────────
 
 export const ENGINE_PROXY_MODES = ['direct', 'manual'] as const
 export type EngineProxyMode = (typeof ENGINE_PROXY_MODES)[number]
@@ -19,6 +21,92 @@ export function isProxyModeEnabled(mode: EngineProxyMode): boolean {
 export function proxySwitchValueToMode(enabled: boolean): EngineProxyMode {
   return enabled ? 'manual' : 'direct'
 }
+
+// ── URL helpers ─────────────────────────────────────────────────────
+
+export interface ProxyCredentials {
+  username?: string
+  password?: string
+}
+
+export interface ProxyEndpoint extends ProxyCredentials {
+  server?: string
+}
+
+export function buildProxyUrlWithCredentials(proxy: ProxyEndpoint): string | null {
+  const server = proxy.server?.trim()
+  if (!server) return null
+  const username = proxy.username?.trim() ?? ''
+  const password = proxy.password ?? ''
+  if (!username && !password) return server
+
+  const parseTarget = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(server) ? server : `http://${server}`
+  try {
+    const url = new URL(parseTarget)
+    url.username = username
+    url.password = password
+    return url.toString()
+  } catch {
+    return server
+  }
+}
+
+export function hasProxyScope(proxy: Pick<ProxyConfig, 'scope'>, scope: string): boolean {
+  return Array.isArray(proxy.scope) && proxy.scope.includes(scope)
+}
+
+// ── aria2 proxy URL validation ──────────────────────────────────────
+
+/** Regex matching URI schemes that aria2 cannot handle as proxy. */
+export const UNSUPPORTED_PROXY_SCHEME_RE = /^socks[45a-z]*:\/\//i
+
+/**
+ * Validates a proxy URL against aria2's `HttpProxyOptionHandler` whitelist.
+ *
+ * aria2 accepts `http://`, `https://`, `ftp://`, and bare `HOST:PORT`
+ * values. SOCKS/custom schemes are rejected before they can crash the engine.
+ */
+export function isValidAria2ProxyUrl(url: string): boolean {
+  if (!url || !url.trim()) return true
+  const trimmed = url.trim()
+
+  if (UNSUPPORTED_PROXY_SCHEME_RE.test(trimmed)) return false
+
+  if (/^(https?|ftp):\/\//i.test(trimmed)) {
+    try {
+      new URL(trimmed)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
+    try {
+      new URL(`http://${trimmed}`)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  return false
+}
+
+// ── App-side scoped proxy resolution ────────────────────────────────
+
+export type AppProxyScope = (typeof PROXY_SCOPES)[keyof typeof PROXY_SCOPES]
+
+/** Resolves the proxy URL for an app-side request (updater, tracker sync)
+ * when the given scope is enabled; `null` means connect directly. */
+export function resolveAppProxyUrl(proxy: Partial<ProxyConfig> | undefined, scope: AppProxyScope): string | null {
+  if (!proxy || proxy.mode !== 'manual') return null
+  if (!proxy.server?.trim()) return null
+  if (!Array.isArray(proxy.scope) || !proxy.scope.includes(scope)) return null
+  return buildProxyUrlWithCredentials(proxy)
+}
+
+// ── aria2 engine option assembly ────────────────────────────────────
 
 function hasDownloadScope(proxy: Pick<ProxyConfig, 'scope'>): boolean {
   return hasProxyScope(proxy, PROXY_SCOPES.DOWNLOAD)

@@ -1,40 +1,17 @@
 use crate::engine::{valid_aria2_log_level, DEFAULT_ARIA2_LOG_LEVEL};
 use crate::error::AppError;
+use crate::log_policy::{
+    is_managed_active_log_file, remove_legacy_log_files, ARIA2_LOG_FILE, MOTRIX_LOG_FILE,
+};
 use serde_json::Value;
 use std::path::Path;
 use tauri::AppHandle;
 use tauri::Manager;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ManagedLogFileKind {
-    Active,
-    Rotated,
-}
-
-fn is_aria2_rotated_log_file(name: &str) -> bool {
-    let Some(index) = name
-        .strip_prefix("aria2-next.")
-        .and_then(|rest| rest.strip_suffix(".log"))
-    else {
-        return false;
-    };
-    !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-fn managed_log_file_kind(name: &str) -> Option<ManagedLogFileKind> {
-    if name == "motrix-next.log" || name == "aria2-next.log" {
-        Some(ManagedLogFileKind::Active)
-    } else if is_aria2_rotated_log_file(name) {
-        Some(ManagedLogFileKind::Rotated)
-    } else {
-        None
-    }
-}
-
 fn diagnostic_log_zip_path(name: &str) -> Option<String> {
-    if name == "motrix-next.log" {
+    if name == MOTRIX_LOG_FILE {
         Some(format!("motrix-next/{name}"))
-    } else if name == "aria2-next.log" || is_aria2_rotated_log_file(name) {
+    } else if name == ARIA2_LOG_FILE {
         Some(format!("aria2-next/{name}"))
     } else {
         None
@@ -158,6 +135,8 @@ fn clear_managed_log_files_in_dir(log_dir: &Path) -> Result<(), AppError> {
     if !log_dir.exists() {
         return Ok(());
     }
+    remove_legacy_log_files(log_dir)
+        .map_err(|e| AppError::Io(format!("Failed to remove legacy logs: {e}")))?;
     for entry in std::fs::read_dir(log_dir)
         .map_err(|e| AppError::Io(format!("Failed to read log dir: {e}")))?
         .flatten()
@@ -170,19 +149,12 @@ fn clear_managed_log_files_in_dir(log_dir: &Path) -> Result<(), AppError> {
         if !path.is_file() {
             continue;
         }
-        match managed_log_file_kind(name) {
-            Some(ManagedLogFileKind::Active) => {
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .truncate(true)
-                    .open(&path)
-                    .map_err(|e| AppError::Io(format!("Failed to clear active log: {e}")))?;
-            }
-            Some(ManagedLogFileKind::Rotated) => {
-                std::fs::remove_file(&path)
-                    .map_err(|e| AppError::Io(format!("Failed to remove rotated log: {e}")))?;
-            }
-            None => {}
+        if is_managed_active_log_file(name) {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(&path)
+                .map_err(|e| AppError::Io(format!("Failed to clear active log: {e}")))?;
         }
     }
     Ok(())
@@ -397,51 +369,27 @@ mod export_tests {
             diagnostic_log_zip_path("aria2-next.log"),
             Some("aria2-next/aria2-next.log".to_string())
         );
-        assert_eq!(
-            diagnostic_log_zip_path("aria2-next.1.log"),
-            Some("aria2-next/aria2-next.1.log".to_string())
-        );
-        assert_eq!(diagnostic_log_zip_path("other.log"), None);
+        assert_eq!(diagnostic_log_zip_path("aria2-next.1.log"), None);
         assert_eq!(diagnostic_log_zip_path("aria2-next.log.1"), None);
+        assert_eq!(diagnostic_log_zip_path("other.log"), None);
         assert_eq!(diagnostic_log_zip_path("motrix-next.log.1"), None);
     }
 
     #[test]
-    fn managed_log_file_kind_classifies_current_log_names_only() {
-        assert_eq!(
-            managed_log_file_kind("motrix-next.log"),
-            Some(ManagedLogFileKind::Active)
-        );
-        assert_eq!(
-            managed_log_file_kind("aria2-next.log"),
-            Some(ManagedLogFileKind::Active)
-        );
-        assert_eq!(
-            managed_log_file_kind("aria2-next.1.log"),
-            Some(ManagedLogFileKind::Rotated)
-        );
-        assert_eq!(
-            managed_log_file_kind("aria2-next.20.log"),
-            Some(ManagedLogFileKind::Rotated)
-        );
-        assert_eq!(managed_log_file_kind("aria2-next.log.1"), None);
-        assert_eq!(managed_log_file_kind("motrix-next.log.1"), None);
-        assert_eq!(managed_log_file_kind("other.log"), None);
-    }
-
-    #[test]
-    fn clear_managed_log_files_truncates_active_logs_and_removes_rotated_logs() {
+    fn clear_managed_log_files_truncates_active_logs_and_removes_legacy_logs() {
         let dir = tempfile::tempdir().expect("tempdir");
         let motrix = dir.path().join("motrix-next.log");
         let aria2 = dir.path().join("aria2-next.log");
         let rotated = dir.path().join("aria2-next.1.log");
-        let legacy = dir.path().join("aria2-next.log.1");
+        let current_rotated = dir.path().join("aria2-next.log.1");
+        let motrix_rotated = dir.path().join("motrix-next.log.1");
         let other = dir.path().join("other.log");
 
         std::fs::write(&motrix, "motrix log").expect("motrix log");
         std::fs::write(&aria2, "aria2 log").expect("aria2 log");
         std::fs::write(&rotated, "rotated log").expect("rotated log");
-        std::fs::write(&legacy, "legacy log").expect("legacy log");
+        std::fs::write(&current_rotated, "rotated log").expect("current rotated log");
+        std::fs::write(&motrix_rotated, "rotated log").expect("motrix rotated log");
         std::fs::write(&other, "other log").expect("other log");
 
         clear_managed_log_files_in_dir(dir.path()).expect("clear logs");
@@ -452,10 +400,8 @@ mod export_tests {
         );
         assert_eq!(std::fs::metadata(&aria2).expect("aria2 metadata").len(), 0);
         assert!(!rotated.exists());
-        assert_eq!(
-            std::fs::read_to_string(&legacy).expect("legacy content"),
-            "legacy log"
-        );
+        assert!(!current_rotated.exists());
+        assert!(!motrix_rotated.exists());
         assert_eq!(
             std::fs::read_to_string(&other).expect("other content"),
             "other log"
@@ -480,7 +426,7 @@ mod export_tests {
 
     #[test]
     fn config_aria2_log_level_reads_current_field_only() {
-        assert_eq!(config_aria2_log_level(None), "notice");
+        assert_eq!(config_aria2_log_level(None), "info");
         assert_eq!(
             config_aria2_log_level(Some(&serde_json::json!({
                 "preferences": { "aria2LogLevel": "debug" }
@@ -489,21 +435,15 @@ mod export_tests {
         );
         assert_eq!(
             config_aria2_log_level(Some(&serde_json::json!({
-                "preferences": { "aria2LogLevel": "notice" }
-            }))),
-            "notice"
-        );
-        assert_eq!(
-            config_aria2_log_level(Some(&serde_json::json!({
                 "preferences": { "aria2LogLevel": "verbose" }
             }))),
-            "notice"
+            "info"
         );
         assert_eq!(
             config_aria2_log_level(Some(&serde_json::json!({
                 "preferences": { "aria2LogsEnabled": false }
             }))),
-            "notice"
+            "info"
         );
     }
 }
@@ -545,7 +485,29 @@ pub fn read_local_file(path: String) -> Result<Vec<u8>, AppError> {
 }
 
 const MAX_LOCAL_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
-const SUPPORTED_LOCAL_IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "webp", "bmp", "gif"];
+const MAX_LOCAL_IMAGE_PIXELS: u64 = 24_000_000;
+
+fn local_image_format(extension: &str) -> Option<image::ImageFormat> {
+    match extension {
+        "png" => Some(image::ImageFormat::Png),
+        "jpg" | "jpeg" => Some(image::ImageFormat::Jpeg),
+        "webp" => Some(image::ImageFormat::WebP),
+        "bmp" => Some(image::ImageFormat::Bmp),
+        "gif" => Some(image::ImageFormat::Gif),
+        _ => None,
+    }
+}
+
+fn validate_local_image_dimensions(width: u32, height: u32) -> Result<(), AppError> {
+    let pixel_count = u64::from(width) * u64::from(height);
+    if width == 0 || height == 0 || pixel_count > MAX_LOCAL_IMAGE_PIXELS {
+        return Err(AppError::Io(format!(
+            "Background image dimensions exceed the {} megapixel limit",
+            MAX_LOCAL_IMAGE_PIXELS / 1_000_000
+        )));
+    }
+    Ok(())
+}
 
 /// Reads a local background image through Tauri's binary IPC response path.
 ///
@@ -557,13 +519,12 @@ pub fn read_local_image(path: String) -> Result<tauri::ipc::Response, AppError> 
     use std::io::Read;
 
     let path = std::path::Path::new(&path);
-    let extension = path
+    let image_format = path
         .extension()
         .and_then(std::ffi::OsStr::to_str)
         .map(str::to_ascii_lowercase)
-        .filter(|extension| SUPPORTED_LOCAL_IMAGE_EXTENSIONS.contains(&extension.as_str()))
+        .and_then(|extension| local_image_format(&extension))
         .ok_or_else(|| AppError::Io("Unsupported background image format".into()))?;
-    debug_assert!(SUPPORTED_LOCAL_IMAGE_EXTENSIONS.contains(&extension.as_str()));
 
     let mut file = std::fs::File::open(path)
         .map_err(|e| AppError::Io(format!("Failed to open background image: {e}")))?;
@@ -579,6 +540,19 @@ pub fn read_local_image(path: String) -> Result<tauri::ipc::Response, AppError> 
             MAX_LOCAL_IMAGE_BYTES / 1024 / 1024
         )));
     }
+
+    let dimension_file = file
+        .try_clone()
+        .map_err(|e| AppError::Io(format!("Failed to inspect background image: {e}")))?;
+    let (width, height) =
+        image::ImageReader::with_format(std::io::BufReader::new(dimension_file), image_format)
+            .into_dimensions()
+            .map_err(|e| {
+                AppError::Io(format!(
+                    "Failed to inspect background image dimensions: {e}"
+                ))
+            })?;
+    validate_local_image_dimensions(width, height)?;
 
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.by_ref()
@@ -1003,18 +977,45 @@ mod tests {
 
     #[test]
     fn read_local_image_accepts_supported_files_within_limit() {
-        use std::io::Write;
+        let directory = tempfile::tempdir().expect("create image fixture directory");
+        let path = directory.path().join("background.png");
+        image::RgbaImage::from_pixel(1, 1, image::Rgba([0, 0, 0, 255]))
+            .save_with_format(&path, image::ImageFormat::Png)
+            .expect("write image fixture");
 
+        let result = read_local_image(path.to_string_lossy().to_string());
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn read_local_image_rejects_malformed_images() {
         let mut file = tempfile::Builder::new()
             .suffix(".png")
             .tempfile()
-            .expect("create image fixture");
-        file.write_all(b"not-decoded-by-command")
-            .expect("write image fixture");
+            .expect("create malformed image fixture");
+        std::io::Write::write_all(&mut file, b"not-an-image").expect("write malformed fixture");
 
-        let result = read_local_image(file.path().to_string_lossy().to_string());
+        let Err(error) = read_local_image(file.path().to_string_lossy().to_string()) else {
+            panic!("malformed image must fail");
+        };
 
-        assert!(result.is_ok());
+        assert!(error
+            .to_string()
+            .contains("Failed to inspect background image dimensions"));
+    }
+
+    #[test]
+    fn local_image_dimensions_reject_pixel_bombs() {
+        assert!(validate_local_image_dimensions(4_096, 4_096).is_ok());
+
+        let Err(error) = validate_local_image_dimensions(8_192, 8_192) else {
+            panic!("oversized image dimensions must fail");
+        };
+
+        assert!(error
+            .to_string()
+            .contains("dimensions exceed the 24 megapixel limit"));
     }
 
     #[test]

@@ -440,24 +440,6 @@ pub async fn aria2_unpause(state: State<'_, Aria2State>, gid: String) -> Result<
     state.0.unpause(&gid).await
 }
 
-/// Pause all active downloads (graceful).
-#[tauri::command]
-pub async fn aria2_pause_all(state: State<'_, Aria2State>) -> Result<String, AppError> {
-    state.0.pause_all().await
-}
-
-/// Forcefully pause all active downloads.
-#[tauri::command]
-pub async fn aria2_force_pause_all(state: State<'_, Aria2State>) -> Result<String, AppError> {
-    state.0.force_pause_all().await
-}
-
-/// Resume all paused downloads.
-#[tauri::command]
-pub async fn aria2_unpause_all(state: State<'_, Aria2State>) -> Result<String, AppError> {
-    state.0.unpause_all().await
-}
-
 /// Save the current aria2 session to disk.
 #[tauri::command]
 pub async fn aria2_save_session(state: State<'_, Aria2State>) -> Result<String, AppError> {

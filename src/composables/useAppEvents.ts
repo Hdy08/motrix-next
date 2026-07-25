@@ -17,7 +17,7 @@ import { detectKind, createBatchItem } from '@shared/utils/batchHelpers'
 import { createExternalInputTraceId, summarizeExternalInputBatch } from '@shared/utils/externalInputDiagnostics'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { isMotrixNewTaskLink } from '@shared/utils/motrixDeepLink'
-import type { ExternalDownloadInput } from '@shared/types'
+import type { ExternalDownloadInput, TaskStartNotificationTask } from '@shared/types'
 import { handleTaskStart } from '@/composables/useTaskNotifyHandlers'
 import { onUnmounted, watch, type Ref, type WatchStopHandle } from 'vue'
 
@@ -68,7 +68,7 @@ interface AppEventsDeps {
     handleDeepLinkUrls: (urls: string[]) => DeepLinkHandlingResult | void
     handleExternalInputs: (inputs: ExternalDownloadInput[]) => DeepLinkHandlingResult | void
     setExternalInputErrorHandler?: (handler: ((error: unknown) => void) | null) => void
-    setExternalInputStartHandler?: (handler: ((taskNames: string[]) => void) | null) => void
+    setExternalInputStartHandler?: (handler: ((tasks: TaskStartNotificationTask[]) => void) | null) => void
     engineReady: boolean
     engineRestarting: boolean
     addTaskVisible: boolean

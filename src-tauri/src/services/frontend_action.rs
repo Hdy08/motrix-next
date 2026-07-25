@@ -4,6 +4,8 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+const PENDING_FRONTEND_ACTION_LIMIT: usize = 32;
+
 /// Frontend actions waiting for a recreated WebView to finish booting.
 ///
 /// Lightweight mode destroys the main WebView while keeping native tray and
@@ -48,6 +50,13 @@ pub enum FrontendActionChannel {
     MenuEvent,
     NotificationAction,
     TrayMenuAction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PendingActionEnqueueResult {
+    Queued,
+    Duplicate,
+    ReplacedOldest,
 }
 
 impl FrontendActionChannel {
@@ -174,35 +183,87 @@ pub fn dispatch_frontend_action(
         }
     }
 
-    queue_pending_frontend_action(app, PendingFrontendAction::new(channel, action), source);
-    schedule_main_window_wake(app, source);
+    if queue_pending_frontend_action(app, PendingFrontendAction::new(channel, action), source) {
+        schedule_main_window_wake(app, source);
+    }
 }
 
 fn queue_pending_frontend_action(
     app: &AppHandle,
     action: PendingFrontendAction,
     source: &'static str,
-) {
+) -> bool {
     match app.try_state::<PendingFrontendActionState>() {
         Some(state) => match state.0.lock() {
             Ok(mut inner) => {
-                inner.queue.push(action);
-                log::info!(
-                    "frontend_action:queued source={source} pending={}",
-                    inner.queue.len()
-                );
+                let result = enqueue_pending_frontend_action(&mut inner, action);
+                log_pending_action_enqueue(source, result);
+                !matches!(result, PendingActionEnqueueResult::Duplicate)
             }
             Err(poisoned) => {
                 let mut inner = poisoned.into_inner();
-                inner.queue.push(action);
-                log::warn!(
-                    "frontend_action:queued-after-poison source={source} pending={}",
-                    inner.queue.len()
-                );
+                let result = enqueue_pending_frontend_action(&mut inner, action);
+                log_pending_action_enqueue_after_poison(source, result, inner.queue.len());
+                !matches!(result, PendingActionEnqueueResult::Duplicate)
             }
         },
         None => {
             log::error!("frontend_action:queue-unavailable source={source}");
+            false
+        }
+    }
+}
+
+fn enqueue_pending_frontend_action(
+    inner: &mut PendingFrontendActions,
+    action: PendingFrontendAction,
+) -> PendingActionEnqueueResult {
+    if inner.queue.contains(&action) {
+        return PendingActionEnqueueResult::Duplicate;
+    }
+
+    if inner.queue.len() >= PENDING_FRONTEND_ACTION_LIMIT {
+        inner.queue.remove(0);
+        inner.queue.push(action);
+        return PendingActionEnqueueResult::ReplacedOldest;
+    }
+
+    inner.queue.push(action);
+    PendingActionEnqueueResult::Queued
+}
+
+fn log_pending_action_enqueue(source: &'static str, result: PendingActionEnqueueResult) {
+    match result {
+        PendingActionEnqueueResult::Queued => {
+            log::info!("frontend_action:queued source={source}");
+        }
+        PendingActionEnqueueResult::Duplicate => {
+            log::debug!("frontend_action:queue-deduplicated source={source}");
+        }
+        PendingActionEnqueueResult::ReplacedOldest => {
+            log::warn!(
+                "frontend_action:queue-capacity-reached source={source} limit={PENDING_FRONTEND_ACTION_LIMIT}"
+            );
+        }
+    }
+}
+
+fn log_pending_action_enqueue_after_poison(
+    source: &'static str,
+    result: PendingActionEnqueueResult,
+    pending: usize,
+) {
+    match result {
+        PendingActionEnqueueResult::Queued => {
+            log::warn!("frontend_action:queued-after-poison source={source} pending={pending}");
+        }
+        PendingActionEnqueueResult::Duplicate => {
+            log::warn!("frontend_action:queue-deduplicated-after-poison source={source}");
+        }
+        PendingActionEnqueueResult::ReplacedOldest => {
+            log::warn!(
+                "frontend_action:queue-capacity-reached-after-poison source={source} limit={PENDING_FRONTEND_ACTION_LIMIT}"
+            );
         }
     }
 }
@@ -240,8 +301,9 @@ fn wake_main_window(app: &AppHandle, source: &'static str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        take_pending_frontend_actions, FrontendActionChannel, FrontendActionKind,
-        PendingFrontendAction, PendingFrontendActionState,
+        enqueue_pending_frontend_action, take_pending_frontend_actions, FrontendActionChannel,
+        FrontendActionKind, PendingActionEnqueueResult, PendingFrontendAction,
+        PendingFrontendActionState, PendingFrontendActions, PENDING_FRONTEND_ACTION_LIMIT,
     };
 
     #[cfg(target_os = "macos")]
@@ -290,6 +352,43 @@ mod tests {
         state.set_frontend_ready(false);
 
         assert!(!state.frontend_ready());
+    }
+
+    #[test]
+    fn pending_frontend_actions_are_deduplicated_and_bounded() {
+        let mut pending = PendingFrontendActions::default();
+        let show_task_list = PendingFrontendAction::new(
+            FrontendActionChannel::NotificationAction,
+            FrontendActionKind::ShowTaskList,
+        );
+
+        assert_eq!(
+            enqueue_pending_frontend_action(&mut pending, show_task_list.clone()),
+            PendingActionEnqueueResult::Queued
+        );
+        assert_eq!(
+            enqueue_pending_frontend_action(&mut pending, show_task_list),
+            PendingActionEnqueueResult::Duplicate
+        );
+        assert_eq!(pending.queue.len(), 1);
+
+        pending.queue = vec![
+            PendingFrontendAction::new(
+                FrontendActionChannel::TrayMenuAction,
+                FrontendActionKind::NewTask,
+            );
+            PENDING_FRONTEND_ACTION_LIMIT
+        ];
+        let replacement = PendingFrontendAction::new(
+            FrontendActionChannel::NotificationAction,
+            FrontendActionKind::ShowTaskList,
+        );
+        assert_eq!(
+            enqueue_pending_frontend_action(&mut pending, replacement.clone()),
+            PendingActionEnqueueResult::ReplacedOldest
+        );
+        assert_eq!(pending.queue.len(), PENDING_FRONTEND_ACTION_LIMIT);
+        assert_eq!(pending.queue.last(), Some(&replacement));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { mount } from '@vue/test-utils'
+import type { TaskStartNotificationTask } from '@shared/types'
 
 const listenMock = vi.fn()
 const invokeMock = vi.fn()
@@ -351,15 +352,16 @@ describe('useAppEvents', () => {
     await setupListeners()
     invokeMock.mockClear()
     const lastCall = appStore.setExternalInputStartHandler.mock.lastCall
-    const handler = lastCall?.[0] as ((taskNames: string[]) => void) | null | undefined
+    const handler = lastCall?.[0] as ((tasks: TaskStartNotificationTask[]) => void) | null | undefined
 
     expect(typeof handler).toBe('function')
 
-    handler?.(['file.zip'])
+    handler?.([{ name: 'file.zip', gid: 'external-gid-1' }])
 
     expect(message.info).toHaveBeenCalledWith('task.download-start-message')
     expect(invokeMock).toHaveBeenCalledWith('send_task_start_notification', {
       taskNames: ['file.zip'],
+      tasks: [{ name: 'file.zip', gid: 'external-gid-1' }],
     })
   })
 

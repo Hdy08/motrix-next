@@ -278,11 +278,12 @@ describe('handleTaskStart', () => {
   it('delegates single-task OS notification to Rust', () => {
     const deps = makeStartDeps()
 
-    handleTaskStart(['movie.mp4'], deps)
+    handleTaskStart([{ name: 'movie.mp4', gid: 'task-gid-1' }], deps)
 
     expect(mockInvoke).toHaveBeenCalledOnce()
     expect(mockInvoke).toHaveBeenCalledWith('send_task_start_notification', {
       taskNames: ['movie.mp4'],
+      tasks: [{ name: 'movie.mp4', gid: 'task-gid-1' }],
     })
   })
 
@@ -302,6 +303,7 @@ describe('handleTaskStart', () => {
 
     expect(mockInvoke).toHaveBeenCalledWith('send_task_start_notification', {
       taskNames: ['a.zip', 'b.torrent', 'c.iso'],
+      tasks: [{ name: 'a.zip' }, { name: 'b.torrent' }, { name: 'c.iso' }],
     })
   })
 

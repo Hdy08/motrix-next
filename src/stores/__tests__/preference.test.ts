@@ -42,6 +42,30 @@ describe('PreferenceStore', () => {
     expect(mockStoreData.get('preferences')).toBeDefined()
   })
 
+  it('persists customization settings with the complete app config', async () => {
+    const customization = {
+      taskCardOpacity: 78,
+      taskListSelectedBackgroundOpacity: 63,
+      taskListWatermark: false,
+      backgroundImagePath: 'C:\\Users\\me\\Pictures\\background.png',
+      backgroundOpacity: 54,
+      taskPaginationOpacity: 82,
+      speedLimitButtonVisible: false,
+      speedLimitButtonOpacity: 46,
+      openFolderOnNotificationClick: true,
+      openTaskListOnStartNotificationClick: true,
+    } satisfies Partial<AppConfig>
+
+    await store.updateAndSave(customization)
+
+    expect(mockStoreData.get('preferences')).toMatchObject(customization)
+
+    setActivePinia(createPinia())
+    const reloadedStore = usePreferenceStore()
+    await reloadedStore.loadPreference()
+    expect(reloadedStore.config).toMatchObject(customization)
+  })
+
   it('replaceAndSave replaces config instead of merging with current state', async () => {
     await store.updateAndSave({ theme: 'dark', locale: 'zh-CN' })
     await store.replaceAndSave({

@@ -3,6 +3,9 @@
 /** Task lifecycle status as reported by aria2 RPC. */
 export type TaskStatus = 'active' | 'waiting' | 'paused' | 'error' | 'complete' | 'removed'
 
+export type AppLogLevel = 'error' | 'warn' | 'info' | 'debug'
+export type Aria2LogLevel = AppLogLevel | 'trace'
+
 /** URI entry within an aria2 file descriptor. */
 export interface Aria2FileUri {
   uri: string
@@ -163,7 +166,7 @@ export interface Aria2RawGlobalStat {
 
 /** HTTP proxy configuration for download tasks and scoped app requests. */
 export interface ProxyConfig {
-  mode?: import('@shared/utils/proxyPolicy').EngineProxyMode
+  mode?: import('@shared/utils/proxy').EngineProxyMode
   server: string
   username?: string
   password?: string
@@ -318,6 +321,10 @@ export interface AppConfig {
   lightweightMode: boolean
   btTrackerAutoSync: boolean
   btTrackerSyncIntervalHours: number
+  btPeerBlocklistEnabled: boolean
+  btPeerBlocklistUrl: string
+  btPeerBlocklistAutoSync: boolean
+  btPeerBlocklistSyncIntervalHours: number
   keepSharing: boolean
   keepWindowState: boolean
 
@@ -337,8 +344,8 @@ export interface AppConfig {
   showProgressBar: boolean
   traySpeedometer: boolean
   dockBadgeSpeed: boolean
-  logLevel: string
-  aria2LogLevel: string
+  logLevel: AppLogLevel
+  aria2LogLevel: Aria2LogLevel
   engineBinPath: string
   /** Directory for internal temporary engine files. Empty means the OS temporary directory. */
   tempFilesDir: string
@@ -510,6 +517,8 @@ export interface TauriUpdate {
   date: string | null
   channel: ResolvedUpdateChannel
   requestedChannel: UpdateChannel
+  /** Computed by Rust via the semver crate — true for cross-channel downgrades. */
+  isRollback: boolean
 }
 
 // ── Batch Add Task ──────────────────────────────────────────────────
@@ -537,6 +546,13 @@ export interface BatchItem {
   status: BatchItemStatus
   /** Error message when status is 'failed'. */
   error?: string
+}
+
+/** A submitted task identity used to associate native start notifications with aria2 lifecycle events. */
+export interface TaskStartNotificationTask {
+  name: string
+  /** The aria2 GID assigned when the task was submitted. */
+  gid?: string
 }
 
 /** Per-file snapshot stored in HistoryMeta.files for multi-file task reconstruction.
@@ -621,9 +637,6 @@ export interface TaskApi {
   forcePauseTask: (params: { gid: string }) => Promise<string>
   pauseTask: (params: { gid: string }) => Promise<string>
   resumeTask: (params: { gid: string }) => Promise<string>
-  pauseAllTask: () => Promise<string>
-  forcePauseAllTask: () => Promise<string>
-  resumeAllTask: () => Promise<string>
   batchResumeTask: (params: { gids: string[] }) => Promise<unknown[][]>
   batchPauseTask: (params: { gids: string[] }) => Promise<unknown[][]>
   batchForcePauseTask: (params: { gids: string[] }) => Promise<unknown[][]>

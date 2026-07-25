@@ -18,6 +18,7 @@ import {
   detectExternalInputKind,
   detectKind,
   createBatchItem,
+  extractMagnetDisplayName,
   resolveExternalFilenameHint,
 } from '@shared/utils/batchHelpers'
 import { summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
@@ -28,7 +29,6 @@ import { resolveUnresolvedItems } from '@/composables/useAddTaskFileOps'
 import { usePreferenceStore } from '@/stores/preference'
 import { useTaskStore } from '@/stores/task'
 import type {
-  Aria2RawGlobalStat,
   Aria2EngineOptions,
   BrowserRequestHeader,
   ExternalDownloadContext,
@@ -36,9 +36,10 @@ import type {
   TauriUpdate,
   AppConfig,
   BatchItem,
+  TaskStartNotificationTask,
 } from '@shared/types'
 import type { AddTaskForm } from '@/composables/useAddTaskSubmit'
-import { getDefaultTaskProxyMode } from '@shared/utils/proxyPolicy'
+import { getDefaultTaskProxyMode } from '@shared/utils/proxy'
 
 /** Payload shape emitted by Rust stat_service via `stat:update`. */
 interface StatPayload {
@@ -121,7 +122,7 @@ export const useAppStore = defineStore('app', () => {
   const externalInputSubmitting = ref(false)
   let externalInputSubmitCount = 0
   let externalInputErrorHandler: ((error: unknown) => void) | null = null
-  let externalInputStartHandler: ((taskNames: string[]) => void) | null = null
+  let externalInputStartHandler: ((tasks: TaskStartNotificationTask[]) => void) | null = null
 
   function clearPendingExternalMetadata() {
     pendingReferer.value = ''
@@ -143,7 +144,7 @@ export const useAppStore = defineStore('app', () => {
     externalInputErrorHandler = handler
   }
 
-  function setExternalInputStartHandler(handler: ((taskNames: string[]) => void) | null) {
+  function setExternalInputStartHandler(handler: ((tasks: TaskStartNotificationTask[]) => void) | null) {
     externalInputStartHandler = handler
   }
 
@@ -157,14 +158,6 @@ export const useAppStore = defineStore('app', () => {
 
   function increaseInterval(millisecond = 100) {
     if (interval.value < STAT_MAX_INTERVAL) interval.value += millisecond
-  }
-
-  function decreaseInterval(millisecond = 100) {
-    if (interval.value > STAT_MIN_INTERVAL) interval.value -= millisecond
-  }
-
-  function resetInterval() {
-    interval.value = STAT_BASE_INTERVAL
   }
 
   /**
@@ -209,36 +202,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   /**
-   * One-shot initializer — called once when the engine becomes ready.
-   * Pulls initial stat values so the UI has data before the first Rust
-   * event arrives. Does NOT set tray/dock/progress — Rust handles those.
-   */
-  async function fetchGlobalStat(api: { getGlobalStat: () => Promise<Aria2RawGlobalStat> }) {
-    try {
-      const data = await api.getGlobalStat()
-      const parsed: Record<string, number> = {}
-      Object.keys(data).forEach((key) => {
-        parsed[key] = Number(data[key])
-      })
-
-      const { numActive } = parsed
-      if (numActive > 0) {
-        updateInterval(STAT_BASE_INTERVAL - STAT_PER_TASK_INTERVAL * numActive)
-      } else {
-        parsed.downloadSpeed = 0
-        increaseInterval()
-      }
-      parsed.numStoppedTotal = parsed.numStoppedTotal ?? 0
-      stat.value = parsed as typeof stat.value
-    } catch (e) {
-      logger.warn('AppStore.fetchGlobalStat', (e as Error).message)
-    }
-  }
-
-  /**
    * Processes a single stat:update event payload from the Rust backend.
    * Updates reactive stat values AND the adaptive polling interval that
-   * TaskView and lifecycleService depend on.
+   * TaskView's list refresh depends on.
    */
   function handleStatEvent(payload: StatPayload) {
     const { numActive } = payload
@@ -493,8 +459,15 @@ export const useAppStore = defineStore('app', () => {
         },
         getDownloadProxy(preferenceStore.config.proxy),
       )
-      const taskNames = result.submittedTaskNames.length > 0 ? result.submittedTaskNames : [filenameHint || url]
-      externalInputStartHandler?.(taskNames)
+      const magnetFallbackName = extractMagnetDisplayName(url) || filenameHint || url
+      const startedTasks: TaskStartNotificationTask[] = [
+        ...(result.submittedTasks ?? result.submittedTaskNames.map((name) => ({ name }))),
+        ...(result.magnetTasks ?? []).map((task) => ({
+          name: task.name.trim() || extractMagnetDisplayName(task.uri) || magnetFallbackName,
+          gid: task.gid,
+        })),
+      ]
+      externalInputStartHandler?.(startedTasks.length > 0 ? startedTasks : [{ name: magnetFallbackName }])
       preferenceStore.recordHistoryDirectory(form.dir || preferenceStore.config.dir)
       logger.info(
         'autoSubmit',
@@ -558,9 +531,10 @@ export const useAppStore = defineStore('app', () => {
     try {
       await resolveUnresolvedItems([item], (key) => key, getDownloadProxy(preferenceStore.config.proxy))
       if (item.status === 'failed') throw new Error(item.error || 'Failed to load torrent')
-      const failures = await submitBatchItems([item], options, taskStore)
+      const startedTasks: TaskStartNotificationTask[] = []
+      const failures = await submitBatchItems([item], options, taskStore, (task) => startedTasks.push(task))
       if (failures > 0) throw new Error(item.error || 'Failed to submit torrent')
-      externalInputStartHandler?.([item.displayName])
+      externalInputStartHandler?.(startedTasks.length > 0 ? startedTasks : [{ name: item.displayName }])
       preferenceStore.recordHistoryDirectory(form.dir || preferenceStore.config.dir)
       logger.info(
         'autoSubmit',
@@ -602,13 +576,10 @@ export const useAppStore = defineStore('app', () => {
     pendingMagnetGids,
     updateInterval,
     increaseInterval,
-    decreaseInterval,
-    resetInterval,
     enqueueBatch,
     showAddTaskDialog,
     hideAddTaskDialog,
     updateAddTaskOptions,
-    fetchGlobalStat,
     handleStatEvent,
     setupStatListener,
     fetchEngineInfo,

@@ -17,7 +17,7 @@
  */
 import type { VNodeChild } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import type { Aria2Task } from '@shared/types'
+import type { Aria2Task, TaskStartNotificationTask } from '@shared/types'
 import { getTaskDisplayName } from '@shared/utils'
 import type { TaskSharingKind } from '@shared/utils/task'
 import { logger } from '@shared/logger'
@@ -108,9 +108,20 @@ export interface StartNotifyDeps {
  * Toast always fires; OS notification is delegated to Rust so lightweight mode
  * uses the same backend-owned native path as completion/error notifications.
  */
-export function handleTaskStart(taskNames: string[], deps: StartNotifyDeps): void {
-  if (taskNames.length === 0) return
+export function handleTaskStart(tasks: Array<string | TaskStartNotificationTask>, deps: StartNotifyDeps): void {
+  const normalizedTasks = tasks
+    .map((task) => {
+      if (typeof task === 'string') return { name: task.trim() }
 
+      const name = task.name.trim()
+      const gid = task.gid?.trim()
+      return gid ? { name, gid } : { name }
+    })
+    .filter((task) => task.name.length > 0)
+
+  if (normalizedTasks.length === 0) return
+
+  const taskNames = normalizedTasks.map((task) => task.name)
   const firstName = taskNames[0]
   const body =
     taskNames.length === 1
@@ -121,7 +132,7 @@ export function handleTaskStart(taskNames: string[], deps: StartNotifyDeps): voi
         })
 
   deps.messageInfo(body)
-  Promise.resolve(invoke('send_task_start_notification', { taskNames })).catch((error) =>
+  Promise.resolve(invoke('send_task_start_notification', { taskNames, tasks: normalizedTasks })).catch((error) =>
     logger.debug('TaskNotify.start', `native notification failed: ${error}`),
   )
   logger.info('TaskNotify.start', `count=${taskNames.length} first="${firstName}"`)

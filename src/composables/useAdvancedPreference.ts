@@ -11,12 +11,12 @@ import {
   DEFAULT_APP_CONFIG as D,
 } from '@shared/constants'
 import { generateRandomInt } from '@shared/utils'
-import { isValidAria2ProxyUrl, UNSUPPORTED_PROXY_SCHEME_RE } from '@shared/utils/aria2Proxy'
-import type { AppConfig } from '@shared/types'
-import { buildDownloadProxyOptions, normalizeProxyMode, type EngineProxyMode } from '@shared/utils/proxyPolicy'
+import { isValidAria2ProxyUrl, UNSUPPORTED_PROXY_SCHEME_RE } from '@shared/utils/proxy'
+import type { AppConfig, AppLogLevel, Aria2LogLevel } from '@shared/types'
+import { buildDownloadProxyOptions, normalizeProxyMode, type EngineProxyMode } from '@shared/utils/proxy'
 import { generateConfigSecret } from '@shared/utils/configHydration'
 
-export { isValidAria2ProxyUrl } from '@shared/utils/aria2Proxy'
+export { isValidAria2ProxyUrl } from '@shared/utils/proxy'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -43,8 +43,8 @@ export interface AdvancedForm {
   listenPort: number
   dhtListenPort: number
   userAgent: string
-  logLevel: string
-  aria2LogLevel: string
+  logLevel: AppLogLevel
+  aria2LogLevel: Aria2LogLevel
   tempFilesDir: string
   hardwareRendering: boolean
   // Clipboard detection (migrated from legacy Basic tab)

@@ -21,7 +21,7 @@ import {
   randomBtPort,
   randomDhtPort,
 } from '@/composables/useNetworkPreference'
-import { proxySwitchValueToMode } from '@shared/utils/proxyPolicy'
+import { proxySwitchValueToMode } from '@shared/utils/proxy'
 
 import userAgentMap from '@shared/ua'
 import { hasUnsafeHeaderChars, sanitizeHeaderValue } from '@shared/utils/headerSanitize'
@@ -130,7 +130,7 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     const changed = diffConfig(preferenceStore.config, f)
     if (checkIsNeedRestart(changed)) {
       const ok = await new Promise<boolean>((resolve) => {
-        dialog.warning({
+        dialog.info({
           title: t('preferences.engine-restart-title'),
           content: t('preferences.engine-restart-confirm'),
           positiveText: t('preferences.engine-restart-now'),
@@ -245,7 +245,7 @@ function handleProxySwitch(value: boolean) {
 function handleManualRestart() {
   const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
   const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.warning({
+  const d = dialog.info({
     title: t('preferences.engine-restart-title'),
     content: t('preferences.engine-restart-manual-confirm'),
     positiveText: t('preferences.engine-restart-now'),
@@ -302,7 +302,7 @@ onMounted(() => {
               <NButton @click="changeUA('safari')">Safari</NButton>
               <NButton @click="changeUA('firefox')">Firefox</NButton>
             </NButtonGroup>
-            <NButton class="ua-reset-btn" size="small" ghost @click="form.userAgent = ''">
+            <NButton type="error" size="small" ghost @click="form.userAgent = ''">
               {{ t('preferences.ua-reset') }}
             </NButton>
           </div>
@@ -609,7 +609,7 @@ onMounted(() => {
   padding: 8px 12px;
   margin-top: 6px;
   border-radius: var(--border-radius);
-  background: var(--m3-error-container-bg);
+  background: var(--m3-error-container);
   opacity: 0;
   transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
 }
@@ -618,25 +618,7 @@ onMounted(() => {
 }
 .ua-warn-text {
   font-size: var(--font-size-sm);
-  color: var(--m3-error);
+  color: var(--m3-on-error-container);
   flex: 1;
-}
-.ua-reset-btn {
-  --btn-muted: #c97070;
-  color: var(--btn-muted) !important;
-  transition:
-    color 0.35s cubic-bezier(0.2, 0, 0, 1),
-    background-color 0.35s cubic-bezier(0.2, 0, 0, 1),
-    border-color 0.35s cubic-bezier(0.2, 0, 0, 1);
-}
-.ua-reset-btn:hover {
-  background-color: color-mix(in srgb, var(--btn-muted) 12%, transparent) !important;
-}
-.ua-reset-btn :deep(.n-button__border) {
-  border-color: var(--btn-muted) !important;
-  transition: border-color 0.35s cubic-bezier(0.2, 0, 0, 1);
-}
-.ua-reset-btn :deep(.n-button__state-border) {
-  transition: border-color 0.35s cubic-bezier(0.2, 0, 0, 1);
 }
 </style>

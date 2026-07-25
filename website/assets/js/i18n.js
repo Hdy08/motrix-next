@@ -127,8 +127,7 @@ function detectLocale() {
 /** Fetch a locale JSON file. Returns parsed object or empty on failure. */
 async function fetchLocale(locale) {
   try {
-    const base = document.querySelector('script[src*="i18n.js"]')?.src.replace(/i18n\.js.*/, '') || ''
-    const res = await fetch(`${base}locales/${locale}.json`)
+    const res = await fetch(new URL(`locales/${locale}.json`, document.baseURI))
     if (!res.ok) return {}
     return await res.json()
   } catch {
@@ -173,7 +172,7 @@ function applyTranslations() {
   document.documentElement.dir = RTL_LOCALES.includes(currentLocale) ? 'rtl' : 'ltr'
 
   // Update active state in language picker
-  document.querySelectorAll('.lang-option').forEach((opt) => {
+  document.querySelectorAll('.picker-option[data-lang]').forEach((opt) => {
     opt.classList.toggle('active', opt.dataset.lang === currentLocale)
   })
 
@@ -188,6 +187,8 @@ function applyTranslations() {
     sysHint.textContent = 'System: ' + sysName
     sysHint.dataset.lang = detectedSystemLocale
     sysHint.style.display = ''
+    const sysSep = document.getElementById('lang-system-sep')
+    if (sysSep) sysSep.style.display = ''
   }
 }
 

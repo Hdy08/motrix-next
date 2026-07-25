@@ -318,10 +318,6 @@ This app is not code-signed on macOS or Windows — Apple charges $99/year, and 
 
 [Buy me a coffee ☕](https://github.com/AnInsomniacy/AnInsomniacy/blob/main/SPONSOR.md) — maybe one day I can afford those certificates, so antivirus software stops treating my app like a criminal 🥲
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=AnInsomniacy/motrix-next&type=Date)](https://star-history.com/#AnInsomniacy/motrix-next&Date)
-
 ## License
 
 [MIT](https://opensource.org/licenses/MIT) — Copyright (c) 2025-present AnInsomniacy

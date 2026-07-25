@@ -6,9 +6,9 @@ import {
 } from '@shared/utils/backgroundCanvas'
 
 describe('background canvas utilities', () => {
-  it('uses device pixels while capping excessive pixel ratios', () => {
+  it('uses the actual device pixel ratio while it fits the pixel budget', () => {
     expect(calculateCanvasPixelSize(800, 600, 2)).toEqual({ width: 1600, height: 1200 })
-    expect(calculateCanvasPixelSize(800, 600, 4)).toEqual({ width: 1600, height: 1200 })
+    expect(calculateCanvasPixelSize(800, 600, 4)).toEqual({ width: 3200, height: 2400 })
   })
 
   it('caps the backing store without changing its aspect ratio', () => {
@@ -36,6 +36,7 @@ describe('background canvas utilities', () => {
 
   it('rejects empty dimensions', () => {
     expect(calculateCanvasPixelSize(0, 600, 2)).toBeNull()
+    expect(calculateCanvasPixelSize(Number.POSITIVE_INFINITY, 600, 2)).toBeNull()
     expect(calculateCoverSourceRect(0, 100, 100, 100)).toBeNull()
   })
 })

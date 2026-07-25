@@ -35,7 +35,7 @@ import { useEd2kSearchSession } from '@/composables/useEd2kSearchSession'
 import { BT_LISTEN_PORT, DHT_LISTEN_PORT, ENGINE_RPC_PORT, PROXY_SCOPES } from '@shared/constants'
 import { diffConfig, checkIsNeedRestart } from '@shared/utils/config'
 import { bytesToSize } from '@shared/utils'
-import { resolveAppProxyUrl } from '@shared/utils/appProxyPolicy'
+import { resolveAppProxyUrl } from '@shared/utils/proxy'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { logger } from '@shared/logger'
 import type { Ed2kSearchResult } from '@shared/types'
@@ -131,7 +131,7 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
     const changed = diffConfig(preferenceStore.config, transformEd2kForStore(f))
     if (checkIsNeedRestart(changed)) {
       const ok = await new Promise<boolean>((resolve) => {
-        dialog.warning({
+        dialog.info({
           title: t('preferences.engine-restart-title'),
           content: t('preferences.engine-restart-confirm'),
           positiveText: t('preferences.engine-restart-now'),
@@ -287,7 +287,7 @@ const resultColumns = computed(() => [
 function handleManualRestart() {
   const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
   const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.warning({
+  const d = dialog.info({
     title: t('preferences.engine-restart-title'),
     content: t('preferences.engine-restart-manual-confirm'),
     positiveText: t('preferences.engine-restart-now'),
@@ -437,7 +437,7 @@ onMounted(() => {
           />
         </NFormItem>
         <NFormItem label=" ">
-          <div class="pref-inline-row">
+          <div class="pref-action-stack">
             <NButton
               class="pref-action-button ed2k-bootstrap-sync-button"
               :loading="bootstrapSyncing"

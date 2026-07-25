@@ -702,6 +702,7 @@ describe('submitManualUris', () => {
     const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(call.outs).toEqual(['Итоги_2026.docx'])
     expect(result.submittedTaskNames).toEqual(['Итоги_2026.docx'])
+    expect(result.submittedTasks).toEqual([{ name: 'Итоги_2026.docx', gid: 'gid1' }])
   })
 
   it('sanitizes referer and cookie before passing them to resolve_filename', async () => {
@@ -769,7 +770,9 @@ describe('submitManualUris', () => {
 
     expect(result).toEqual({
       submittedTaskNames: [],
+      submittedTasks: [],
       magnetGids: ['magnet-gid-1'],
+      magnetTasks: [{ name: '', gid: 'magnet-gid-1', uri: 'magnet:?xt=urn:btih:good' }],
       magnetFailures: [{ uri: 'magnet:?xt=urn:btih:bad', error: 'invalid magnet' }],
     })
   })

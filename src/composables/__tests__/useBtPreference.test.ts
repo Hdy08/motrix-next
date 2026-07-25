@@ -85,7 +85,8 @@ describe('buildBtForm', () => {
 
   it('defaults trackerSource from DEFAULT_APP_CONFIG', () => {
     const form = buildBtForm(emptyConfig)
-    expect(form.trackerSource).toEqual(expect.arrayContaining([]))
+    expect(form.trackerSource).toEqual(DEFAULT_APP_CONFIG.trackerSource)
+    expect(form.trackerSource).toHaveLength(2)
   })
 
   it('preserves custom tracker source URLs', () => {
@@ -131,6 +132,10 @@ describe('buildBtForm', () => {
       'btPeerExchangeEnabled',
       'btLocalPeerDiscoveryEnabled',
       'btMaxPeers',
+      'btPeerBlocklistEnabled',
+      'btPeerBlocklistUrl',
+      'btPeerBlocklistAutoSync',
+      'btPeerBlocklistSyncIntervalHours',
       'trackerSource',
       'customTrackerUrls',
       'btTracker',
@@ -156,6 +161,10 @@ describe('buildBtSystemConfig', () => {
     btPeerExchangeEnabled: true,
     btLocalPeerDiscoveryEnabled: true,
     btMaxPeers: 128,
+    btPeerBlocklistEnabled: true,
+    btPeerBlocklistUrl: 'https://bcr.pbh-btn.com/combine/all.txt',
+    btPeerBlocklistAutoSync: true,
+    btPeerBlocklistSyncIntervalHours: 24,
     trackerSource: [],
     customTrackerUrls: [],
     btTracker: 'udp://t1.org:6969\nudp://t2.org:6969',
@@ -260,6 +269,10 @@ describe('transformBtForStore', () => {
     btPeerExchangeEnabled: true,
     btLocalPeerDiscoveryEnabled: true,
     btMaxPeers: 128,
+    btPeerBlocklistEnabled: true,
+    btPeerBlocklistUrl: 'https://bcr.pbh-btn.com/combine/all.txt',
+    btPeerBlocklistAutoSync: true,
+    btPeerBlocklistSyncIntervalHours: 24,
     trackerSource: [],
     customTrackerUrls: [],
     btTracker: 'udp://a\nudp://b',

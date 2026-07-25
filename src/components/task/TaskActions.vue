@@ -153,7 +153,7 @@ function onDeleteAll() {
   if (targetGids.length === 0) return
   const gids = targetGids
   const deleteFiles = ref(false)
-  const d = dialog.warning({
+  const d = dialog.error({
     title: t('task.delete-task-queue'),
     content: () =>
       h('div', {}, [
@@ -200,7 +200,7 @@ function resumeAll() {
     message.warning(t('app.engine-not-ready'))
     return
   }
-  dialog.warning({
+  dialog.info({
     title: t('task.resume-all-task'),
     content: t('task.resume-all-task-confirm') || 'Resume all tasks?',
     positiveText: t('app.yes'),
@@ -208,7 +208,9 @@ function resumeAll() {
     onPositiveClick: () => {
       taskStore
         .resumeAllTask()
-        .then(() => message.success(t('task.resume-all-task-success')))
+        .then((result) => {
+          if (result.resumed > 0) message.success(t('task.resume-all-task-success'))
+        })
         .catch((e) => {
           logger.warn('TaskActions.resumeAll', getErrorMessage(e))
           message.error(t('task.resume-all-task-fail'))
@@ -222,7 +224,7 @@ function pauseAll() {
     message.warning(t('app.engine-not-ready'))
     return
   }
-  const d = dialog.warning({
+  const d = dialog.info({
     title: t('task.pause-all-task'),
     content: t('task.pause-all-task-confirm') || 'Pause all tasks?',
     positiveText: t('app.yes'),
@@ -261,7 +263,7 @@ function stopAllSharing() {
     message.info(t('task.stop-all-sharing-none'))
     return
   }
-  dialog.warning({
+  dialog.info({
     title: t('task.stop-all-sharing'),
     content: t('task.stop-all-sharing-confirm'),
     positiveText: t('app.yes'),
@@ -325,7 +327,7 @@ onBeforeUnmount(() => cleanupStopSharingWatcher())
 
 function purgeRecord() {
   const deleteFiles = ref(false)
-  const d = dialog.warning({
+  const d = dialog.error({
     title: t('task.purge-record'),
     content: () =>
       h('div', {}, [
@@ -620,7 +622,7 @@ function onBtnRelease(ev: PointerEvent) {
 .sort-panel {
   min-width: 160px;
   padding: 6px;
-  background: var(--m3-surface-container-high);
+  background: var(--m3-surface-container-highest);
   border: 1px solid var(--m3-outline-variant);
   border-radius: 12px;
   box-shadow: 0 4px 16px var(--m3-shadow);
@@ -662,12 +664,14 @@ function onBtnRelease(ev: PointerEvent) {
 }
 
 .sort-item.active {
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--m3-primary) 10%, transparent);
+  color: var(--m3-on-surface);
   font-weight: 500;
 }
 
 .sort-item.active:hover {
-  background: var(--m3-primary-container-bg);
+  background: color-mix(in srgb, var(--m3-primary) 14%, transparent);
+  color: var(--m3-on-surface);
 }
 
 .sort-item-label {
@@ -678,7 +682,7 @@ function onBtnRelease(ev: PointerEvent) {
   display: flex;
   align-items: center;
   margin-left: 8px;
-  color: var(--color-primary);
+  color: var(--m3-on-surface);
   transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 </style>

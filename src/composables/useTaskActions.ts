@@ -72,7 +72,9 @@ export function useTaskActions(deps: TaskActionsDeps) {
     } else {
       taskStore
         .resumeTask(task)
-        .then(() => message.success(t('task.resume-task-success', { taskName })))
+        .then((resumed) => {
+          if (resumed !== false) message.success(t('task.resume-task-success', { taskName }))
+        })
         .catch((e) => {
           logger.warn('TaskView.resumeTask', getErrorMessage(e))
           message.error(t('task.resume-task-fail', { taskName }))
@@ -94,7 +96,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
     }
     const deleteFiles = ref(false)
     const name = getTaskDisplayName(task, { defaultName: 'Unknown' })
-    const d = dialog.warning({
+    const d = dialog.error({
       title: t('task.delete-task'),
       content: () =>
         h('div', {}, [
@@ -150,7 +152,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
     }
     const deleteFiles = ref(false)
     const name = getTaskDisplayName(task, { defaultName: 'Unknown' })
-    const d = dialog.warning({
+    const d = dialog.error({
       title: t('task.delete-task'),
       content: () =>
         h('div', {}, [

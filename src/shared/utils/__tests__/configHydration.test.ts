@@ -119,8 +119,8 @@ describe('hydrateAppConfig', () => {
       taskCardMode: 'tiny' as AppConfig['taskCardMode'],
       colorScheme: 'missing-scheme',
       updateChannel: 'nightly' as AppConfig['updateChannel'],
-      logLevel: 'verbose',
-      aria2LogLevel: 'verbose',
+      logLevel: 'verbose' as AppConfig['logLevel'],
+      aria2LogLevel: 'verbose' as AppConfig['aria2LogLevel'],
       fileAllocation: 'magic',
     })
 
@@ -213,19 +213,6 @@ describe('hydrateAppConfig', () => {
         'openTaskListOnStartNotificationClick',
       ]),
     )
-  })
-
-  it('accepts aria2 notice logs without allowing notice for Motrix logs', () => {
-    const result = hydrateAppConfig({
-      configVersion: CONFIG_VERSION,
-      logLevel: 'notice',
-      aria2LogLevel: 'notice',
-    })
-
-    expect(result.config.logLevel).toBe(DEFAULT_APP_CONFIG.logLevel)
-    expect(result.config.aria2LogLevel).toBe('notice')
-    expect(result.repairs).toContain('logLevel')
-    expect(result.repairs).not.toContain('aria2LogLevel')
   })
 
   it('repairs invalid nested values and keeps valid nested values', () => {
@@ -334,7 +321,7 @@ describe('hydrateAppConfig', () => {
     expect(UPDATE_CHANNELS).toContain(DEFAULT_APP_CONFIG.updateChannel)
     expect(APP_LOG_LEVELS).toContain(DEFAULT_APP_CONFIG.logLevel)
     expect(ARIA2_LOG_LEVELS).toContain(DEFAULT_APP_CONFIG.aria2LogLevel)
-    expect(DEFAULT_APP_CONFIG.aria2LogLevel).toBe('notice')
+    expect(DEFAULT_APP_CONFIG.aria2LogLevel).toBe('info')
     expect(FILE_ALLOCATION_OPTIONS).toContain(DEFAULT_APP_CONFIG.fileAllocation)
     expect(DEFAULT_APP_CONFIG.proxy.scope).toEqual(PROXY_SCOPE_OPTIONS)
   })

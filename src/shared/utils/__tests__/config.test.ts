@@ -4,14 +4,9 @@ import {
   changeKeysCase,
   changeKeysToCamelCase,
   changeKeysToKebabCase,
-  validateNumber,
-  fixValue,
-  separateConfig,
   diffConfig,
   checkIsNeedRestart,
-  buildRpcUrl,
   formatOptionsForEngine,
-  parseHeader,
   filterHotReloadableKeys,
 } from '../config'
 
@@ -49,41 +44,6 @@ describe('changeKeysToKebabCase', () => {
 describe('changeKeysCase', () => {
   it('returns empty when converter is not a function', () => {
     expect(changeKeysCase({ a: 1 }, null as unknown as (s: string) => string)).toEqual({})
-  })
-})
-
-describe('validateNumber', () => {
-  it('validates numbers', () => {
-    expect(validateNumber(42)).toBe(true)
-    expect(validateNumber(3.14)).toBe(true)
-  })
-  it('rejects non-numbers', () => {
-    expect(validateNumber('abc')).toBe(false)
-    expect(validateNumber(NaN)).toBe(false)
-    expect(validateNumber(Infinity)).toBe(false)
-  })
-})
-
-describe('fixValue', () => {
-  it('converts string booleans and numbers', () => {
-    const result = fixValue({ a: 'true', b: 'false', c: '42', d: 'text' })
-    expect(result).toEqual({ a: true, b: false, c: '42', d: 'text' })
-  })
-  it('passes through real numbers unchanged', () => {
-    const result = fixValue({ n: 42, f: 3.14 })
-    expect(result).toEqual({ n: 42, f: 3.14 })
-  })
-  it('returns empty for empty object', () => {
-    expect(fixValue({})).toEqual({})
-  })
-})
-
-describe('separateConfig', () => {
-  it('separates user, system, and other keys', () => {
-    const result = separateConfig({ theme: 'dark', dir: '/tmp', unknownKey: 'val' })
-    expect(result.user).toHaveProperty('theme')
-    expect(result.system).toHaveProperty('dir')
-    expect(result.others).toHaveProperty('unknownKey')
   })
 })
 
@@ -171,16 +131,6 @@ describe('checkIsNeedRestart', () => {
   })
 })
 
-describe('buildRpcUrl', () => {
-  it('builds url without secret', () => {
-    expect(buildRpcUrl({ port: 6800 })).toContain(':6800/jsonrpc')
-  })
-  it('builds url with secret', () => {
-    const result = buildRpcUrl({ port: 6800, secret: 'abc' })
-    expect(result).toContain('token:abc@')
-  })
-})
-
 describe('formatOptionsForEngine', () => {
   it('converts keys to kebab-case', () => {
     const result = formatOptionsForEngine({ maxSpeed: '100' })
@@ -219,35 +169,6 @@ describe('formatOptionsForEngine', () => {
   it('converts boolean to string', () => {
     const result = formatOptionsForEngine({ checkIntegrity: true })
     expect(result['check-integrity']).toBe('true')
-  })
-})
-
-describe('parseHeader', () => {
-  it('parses header string', () => {
-    const result = parseHeader('Content-Type: text/html')
-    expect(result.contentType).toBe('text/html')
-  })
-  it('returns empty for empty string', () => {
-    expect(parseHeader('')).toEqual({})
-  })
-  it('parses multiple headers separated by newlines', () => {
-    const result = parseHeader('Content-Type: text/html\nAuthorization: Bearer abc')
-    expect(result.contentType).toBe('text/html')
-    expect(result.authorization).toBe('Bearer abc')
-  })
-  it('handles header value with colon', () => {
-    const result = parseHeader('Accept: text/html; charset=utf-8')
-    expect(result.accept).toBe('text/html; charset=utf-8')
-  })
-  it('returns empty for whitespace-only string', () => {
-    expect(parseHeader('   ')).toEqual({})
-  })
-  it('ignores malformed header lines without creating an empty key', () => {
-    const result = parseHeader('Content-Type: text/html\nmalformed line\nAuthorization: Bearer abc')
-    expect(result).toEqual({
-      contentType: 'text/html',
-      authorization: 'Bearer abc',
-    })
   })
 })
 

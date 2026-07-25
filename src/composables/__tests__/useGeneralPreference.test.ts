@@ -14,7 +14,6 @@ import {
 } from '../useGeneralPreference'
 import type { AppConfig } from '@shared/types'
 import { DEFAULT_APP_CONFIG } from '@shared/constants'
-import { userKeys } from '@shared/configKeys'
 
 // ── buildGeneralForm ────────────────────────────────────────────────
 
@@ -148,16 +147,6 @@ describe('buildGeneralForm', () => {
     expect(form.speedLimitButtonOpacity).toBe(42)
   })
 
-  it('persists background image settings as user config keys', () => {
-    expect(userKeys).toContain('background-image-path')
-    expect(userKeys).toContain('background-opacity')
-    expect(userKeys).toContain('task-card-opacity')
-    expect(userKeys).toContain('task-list-selected-background-opacity')
-    expect(userKeys).toContain('task-pagination-opacity')
-    expect(userKeys).toContain('speed-limit-button-visible')
-    expect(userKeys).toContain('speed-limit-button-opacity')
-  })
-
   it('reads showProgressBar from config', () => {
     const form = buildGeneralForm({ showProgressBar: false } as AppConfig)
     expect(form.showProgressBar).toBe(false)
@@ -193,10 +182,6 @@ describe('buildGeneralForm', () => {
   it('preserves every-startup autoCheckUpdateInterval from config', () => {
     const form = buildGeneralForm({ autoCheckUpdateInterval: 0 } as unknown as AppConfig)
     expect(form.autoCheckUpdateInterval).toBe(0)
-  })
-
-  it('persists autoCheckUpdateInterval as a user config key', () => {
-    expect(userKeys).toContain('auto-check-update-interval')
   })
 
   it('exposes all supported update channels', async () => {

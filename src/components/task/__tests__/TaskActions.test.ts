@@ -18,7 +18,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const mockIsEngineReady = vi.fn().mockReturnValue(true)
 const mockFetchList = vi.fn().mockResolvedValue(undefined)
-const mockResumeAllTask = vi.fn().mockResolvedValue(undefined)
+const mockResumeAllTask = vi.fn().mockResolvedValue({ resumed: 1, blocked: 0 })
 const mockPauseAllTask = vi.fn().mockResolvedValue(undefined)
 const mockPurgeTaskRecord = vi.fn().mockResolvedValue(undefined)
 const mockBatchRemoveTask = vi.fn().mockResolvedValue(undefined)
@@ -100,7 +100,11 @@ vi.mock('naive-ui', () => ({
     template: '<div><slot name="trigger" /></div>',
     props: ['show', 'trigger', 'placement', 'showArrow', 'raw'],
   },
-  useDialog: () => ({ warning: mockDialogWarning }),
+  useDialog: () => ({
+    error: mockDialogWarning,
+    info: mockDialogWarning,
+    warning: mockDialogWarning,
+  }),
   useMessage: () => ({
     success: mockMessageSuccess,
     error: mockMessageError,
