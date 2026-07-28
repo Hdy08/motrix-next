@@ -151,7 +151,7 @@ function Get-NativeOutput {
     Write-Warning "$Description wrote to stderr: $($stderr.Trim())"
   }
 
-  return $stdout.Trim()
+  return $stdout.TrimEnd([char[]]@([char] 13, [char] 10))
 }
 
 function Initialize-Pnpm {
