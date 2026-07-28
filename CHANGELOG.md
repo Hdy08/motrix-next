@@ -2,6 +2,19 @@
 
 本文件使用中文记录可回溯的源码变更。每次源码提交都应记录改动、影响、验证和交付产物；完整提交历史以 Git 为准。
 
+## 2026-07-29
+
+### `cbf6b8b` - fix: embed frontend assets in packaged app
+
+- 改动内容：修复 Windows 打包 overlay 将绝对 `frontendDist` 误解析为外部 URL、导致 Tauri 不嵌入前端资源的问题；改用相对 `src-tauri` 的 `target/package-work/frontend`，并在写入配置前校验其既非绝对路径也非 URL。打包后会从 Cargo metadata 定位当前应用 EXE，并流式确认 Vite 的唯一主入口文件名已实际嵌入二进制，未嵌入时禁止发布安装包。
+- 影响范围：仅影响本地 Windows 打包和产物校验流程，不改变应用源码或运行时行为。`MotrixNext_3.9.7-beta.8_x64-setup_20260728-235452_ed17bd7.exe` 已确认为缺少前端资源的无效产物，不应安装或分发。
+- 验证结果：已由 Tauri 2.11.2/tauri-utils 2.9.2 源码确认根因；Windows 绝对路径会命中 URL 分支并生成空嵌入资源集合。PowerShell 7.6.4 与 Windows PowerShell 5.1 解析、流式二进制入口检查正反用例及 `CleanOnly` 通过。完整前后端检查、资源嵌入验证和 NSIS 打包将在填充下方 package-slot 时执行。
+<!-- package-slot source=cbf6b8b -->
+- 安装包：待生成
+- SHA-256：待生成
+- 构建提交：待生成
+<!-- package-slot-end -->
+
 ## 2026-07-28
 
 ### `c647a41` - fix: harden dist cleanup failures
