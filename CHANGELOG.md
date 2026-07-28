@@ -4,6 +4,17 @@
 
 ## 2026-07-28
 
+### `7b36896` - fix: preserve git status leading whitespace
+
+- 改动内容：原生命令输出仅裁剪结尾换行，不再移除 `git status --short` 用于表示工作区状态的前导空格，修复完整打包成功后最终状态守卫误报的问题。
+- 影响范围：仅影响打包脚本的原生命令文本解析与最终工作区校验，不改变构建产物、应用运行时或清理范围。
+- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 均通过带前导空格的 `git status --short` 回归测试；上一提交的完整前后端测试、release/NSIS 构建、SHA-256 校验和清理流程已执行通过。
+<!-- package-slot source=7b36896 -->
+- 安装包：待生成
+- SHA-256：待生成
+- 构建提交：待生成
+<!-- package-slot-end -->
+
 ### `7bf003f` - build: add safe package and cleanup script
 
 - 改动内容：新增根目录单文件 Windows 打包与清理脚本；隔离前端构建目录，使用固定白名单清理临时产物，以无覆盖方式归档带时间和提交短哈希的 NSIS 安装包，并执行 PE、长度及 SHA-256 多阶段校验。
