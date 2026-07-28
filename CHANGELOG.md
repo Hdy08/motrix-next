@@ -8,11 +8,11 @@
 
 - 改动内容：修复 Windows 打包 overlay 将绝对 `frontendDist` 误解析为外部 URL、导致 Tauri 不嵌入前端资源的问题；改用相对 `src-tauri` 的 `target/package-work/frontend`，并在写入配置前校验其既非绝对路径也非 URL。打包后会从 Cargo metadata 定位当前应用 EXE，并流式确认 Vite 的唯一主入口文件名已实际嵌入二进制，未嵌入时禁止发布安装包。
 - 影响范围：仅影响本地 Windows 打包和产物校验流程，不改变应用源码或运行时行为。`MotrixNext_3.9.7-beta.8_x64-setup_20260728-235452_ed17bd7.exe` 已确认为缺少前端资源的无效产物，不应安装或分发。
-- 验证结果：已由 Tauri 2.11.2/tauri-utils 2.9.2 源码确认根因；Windows 绝对路径会命中 URL 分支并生成空嵌入资源集合。PowerShell 7.6.4 与 Windows PowerShell 5.1 解析、流式二进制入口检查正反用例及 `CleanOnly` 通过。完整前后端检查、资源嵌入验证和 NSIS 打包将在填充下方 package-slot 时执行。
+- 验证结果：已由 Tauri 2.11.2/tauri-utils 2.9.2 源码确认根因；Windows 绝对路径会命中 URL 分支并生成空嵌入资源集合。PowerShell 7.6.4 与 Windows PowerShell 5.1 解析、流式二进制入口检查正反用例及 `CleanOnly` 通过。第一次完整运行在 Vite 阶段遇到一次性 Node/libuv 断言，未发布安装包且临时产物已清理；单独复跑 Vite 成功，随后第二次完整运行通过 ESLint、Prettier、仓库完整性、`vue-tsc`、94 个前端测试文件（2159 项测试）、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试，前端入口嵌入校验、release/NSIS 构建、SHA-256 校验、Changelog 更新和最终清理均成功。新安装包为 16,600,693 字节，`dist` 仅含安装包，依赖与 sidecar 已保留。
 <!-- package-slot source=cbf6b8b -->
-- 安装包：待生成
-- SHA-256：待生成
-- 构建提交：待生成
+- 安装包：`MotrixNext_3.9.7-beta.8_x64-setup_20260729-005356_e69a678.exe`
+- SHA-256：`0F42327B5355190AADA357F3ACBFB19ABEA06735C8BCE2C21F4AE49177608F63`
+- 构建提交：`e69a678`
 <!-- package-slot-end -->
 
 ## 2026-07-28
