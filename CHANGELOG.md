@@ -8,9 +8,9 @@
 
 - 改动内容：新增根目录单文件 Windows 打包与清理脚本；隔离前端构建目录，使用固定白名单清理临时产物，以无覆盖方式归档带时间和提交短哈希的 NSIS 安装包，并执行 PE、长度及 SHA-256 多阶段校验。
 - 影响范围：仅影响本地测试、Windows NSIS 打包、安装包归档及临时产物清理流程；不改变应用运行时功能。保留 `dist` 既有文件、`node_modules`、Cargo/Rust 工具链与缓存，后续仍可直接重新打包。
-- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析及安全清理通过；无覆盖写入、中文 Changelog 原子更新、并发内容保护、脏工作区拒绝和 reparse point 拒绝测试通过；ESLint、Prettier、仓库完整性、`vue-tsc`、94 个前端测试文件（2159 项测试）、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试均通过。
+- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析及安全清理通过；无覆盖写入、中文 Changelog 原子更新、并发内容保护、脏工作区拒绝和 reparse point 拒绝测试通过；ESLint、Prettier、仓库完整性、`vue-tsc`、94 个前端测试文件（2159 项测试）、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试均通过。首次完整运行已完成 release/NSIS 构建、安装包复核与临时目录清理，最终工作树校验因前导空格被裁剪而误报，产物和清理状态经独立复核有效。
 <!-- package-slot source=7bf003f -->
-- 安装包：待生成
-- SHA-256：待生成
-- 构建提交：待生成
+- 安装包：`MotrixNext_3.9.7-beta.8_x64-setup_20260728-225847_cf018e4.exe`
+- SHA-256：`F3535903140286FFC18036FEF384E29CC839ED676DEB29D522CA3B599F710E3C`
+- 构建提交：`cf018e4`
 <!-- package-slot-end -->
