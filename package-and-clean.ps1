@@ -8,7 +8,8 @@ Builds a uniquely named Windows installer and removes generated build output.
 The default Package action verifies the repository, runs the required frontend
 and Rust checks, builds frontend assets outside the protected dist directory,
 creates an unsigned NSIS installer, verifies SHA-256, updates the single pending
-CHANGELOG package slot, and removes fixed allowlisted temporary directories.
+CHANGELOG package slot, removes fixed allowlisted temporary directories, and
+leaves only installers in the dist directory.
 
 .EXAMPLE
 .\package-and-clean.ps1
@@ -315,6 +316,12 @@ function Invoke-GeneratedCleanup {
     }
   }
 
+  try {
+    Remove-NonInstallerDistContent
+  } catch {
+    $cleanupErrors.Add($_.Exception.Message)
+  }
+
   if ($cleanupErrors.Count -gt 0) {
     throw "Cleanup failed:$([Environment]::NewLine)- $($cleanupErrors -join "$([Environment]::NewLine)- ")"
   }
@@ -329,6 +336,12 @@ function Ensure-DistDirectory {
 
   [void] [System.IO.Directory]::CreateDirectory($script:DistDirectory)
   Assert-DirectoryHasNoReparsePoints -Path $script:DistDirectory
+}
+
+function Test-IsDistInstaller {
+  param([Parameter(Mandatory)][System.IO.FileSystemInfo] $Item)
+
+  return -not $Item.PSIsContainer -and $Item.Extension -ieq '.exe'
 }
 
 function Get-ValidatedRepositoryIdentity {
@@ -372,14 +385,17 @@ function Get-ValidatedRepositoryIdentity {
   }
 }
 
-function Get-DistSnapshot {
+function Get-InstallerSnapshot {
   Ensure-DistDirectory
 
   $snapshot = @{}
-  $prefixLength = $script:DistDirectory.Length + 1
-  foreach ($file in Get-ChildItem -LiteralPath $script:DistDirectory -File -Force -Recurse) {
-    $relativePath = $file.FullName.Substring($prefixLength)
-    $snapshot[$relativePath] = [pscustomobject]@{
+  foreach ($file in Get-ChildItem -LiteralPath $script:DistDirectory -File -Force) {
+    if (-not (Test-IsDistInstaller -Item $file)) {
+      continue
+    }
+
+    Assert-RegularFileWithoutReparsePoint -Path $file.FullName
+    $snapshot[$file.Name] = [pscustomobject]@{
       Length = $file.Length
       Hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
     }
@@ -388,39 +404,102 @@ function Get-DistSnapshot {
   return $snapshot
 }
 
-function Assert-DistSnapshotPreserved {
+function Assert-InstallerSnapshotPreserved {
   param(
     [Parameter(Mandatory)][hashtable] $Before,
-    [Parameter(Mandatory)][string[]] $ExpectedNewFiles
+    [Parameter(Mandatory)][AllowEmptyCollection()][string[]] $ExpectedNewFiles
   )
 
-  $after = Get-DistSnapshot
-  foreach ($relativePath in $Before.Keys) {
-    if (-not $after.ContainsKey($relativePath)) {
-      throw "An existing dist file was removed: $relativePath"
+  $after = Get-InstallerSnapshot
+  foreach ($installerName in $Before.Keys) {
+    if (-not $after.ContainsKey($installerName)) {
+      throw "An existing installer was removed: $installerName"
     }
 
-    $beforeEntry = $Before[$relativePath]
-    $afterEntry = $after[$relativePath]
+    $beforeEntry = $Before[$installerName]
+    $afterEntry = $after[$installerName]
     if ($beforeEntry.Length -ne $afterEntry.Length -or $beforeEntry.Hash -ne $afterEntry.Hash) {
-      throw "An existing dist file was modified: $relativePath"
+      throw "An existing installer was modified: $installerName"
     }
   }
 
   $expected = @{}
-  foreach ($relativePath in $ExpectedNewFiles) {
-    $expected[$relativePath] = $true
+  foreach ($installerName in $ExpectedNewFiles) {
+    $expected[$installerName] = $true
   }
 
   $unexpected = @($after.Keys | Where-Object { -not $Before.ContainsKey($_) -and -not $expected.ContainsKey($_) })
   if ($unexpected.Count -gt 0) {
-    throw "Unexpected files were added to dist: $($unexpected -join ', ')"
+    throw "Unexpected installers were added to dist: $($unexpected -join ', ')"
   }
-  foreach ($relativePath in $ExpectedNewFiles) {
-    if (-not $after.ContainsKey($relativePath)) {
-      throw "Expected package output is missing from dist: $relativePath"
+  foreach ($installerName in $ExpectedNewFiles) {
+    if (-not $after.ContainsKey($installerName)) {
+      throw "Expected package output is missing from dist: $installerName"
     }
   }
+}
+
+function Assert-DistContainsInstallersOnly {
+  Ensure-DistDirectory
+
+  $unexpectedItems = New-Object System.Collections.Generic.List[string]
+  foreach ($item in Get-ChildItem -LiteralPath $script:DistDirectory -Force) {
+    if (Test-IsDistInstaller -Item $item) {
+      Assert-RegularFileWithoutReparsePoint -Path $item.FullName
+      continue
+    }
+
+    $unexpectedItems.Add($item.Name)
+  }
+
+  if ($unexpectedItems.Count -gt 0) {
+    throw "dist must contain root-level .exe installers only; found: $($unexpectedItems -join ', ')"
+  }
+}
+
+function Remove-NonInstallerDistContent {
+  Ensure-DistDirectory
+  $installerSnapshot = Get-InstallerSnapshot
+  $cleanupErrors = New-Object System.Collections.Generic.List[string]
+
+  foreach ($item in @(Get-ChildItem -LiteralPath $script:DistDirectory -Force)) {
+    if (Test-IsDistInstaller -Item $item) {
+      continue
+    }
+
+    try {
+      if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Refusing to remove a reparse point from dist: $($item.FullName)"
+      }
+      if ($item.PSIsContainer) {
+        Assert-DirectoryHasNoReparsePoints -Path $item.FullName
+        $nestedExecutable = Get-ChildItem -LiteralPath $item.FullName -File -Force -Recurse |
+          Where-Object { $_.Extension -ieq '.exe' } |
+          Select-Object -First 1
+        if ($null -ne $nestedExecutable) {
+          throw "Refusing to remove a dist directory containing a possible installer: $($nestedExecutable.FullName)"
+        }
+        Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction Stop
+      } else {
+        Assert-RegularFileWithoutReparsePoint -Path $item.FullName
+        Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
+      }
+      if (Test-Path -LiteralPath $item.FullName) {
+        throw "dist cleanup verification failed; path still exists: $($item.FullName)"
+      }
+
+      Write-Host "Removed non-installer dist content: $($item.FullName)"
+    } catch {
+      $cleanupErrors.Add($_.Exception.Message)
+    }
+  }
+
+  if ($cleanupErrors.Count -gt 0) {
+    throw "Failed to clean non-installer dist content:$([Environment]::NewLine)- $($cleanupErrors -join "$([Environment]::NewLine)- ")"
+  }
+
+  Assert-InstallerSnapshotPreserved -Before $installerSnapshot -ExpectedNewFiles @()
+  Assert-DistContainsInstallersOnly
 }
 
 function Get-PendingPackageSlot {
@@ -627,7 +706,7 @@ function Publish-Installer {
     [Parameter(Mandatory)][string] $SourcePath,
     [Parameter(Mandatory)][string] $UniqueSuffix,
     [Parameter(Mandatory)][string] $ExpectedCommit,
-    [Parameter(Mandatory)][hashtable] $DistSnapshot
+    [Parameter(Mandatory)][hashtable] $InstallerSnapshot
   )
 
   if ($UniqueSuffix -notmatch '^\d{8}-\d{6}_[0-9a-f]{7,40}$') {
@@ -643,18 +722,12 @@ function Publish-Installer {
   $sourceName = [System.IO.Path]::GetFileNameWithoutExtension($SourcePath)
   $installerName = "${sourceName}_${UniqueSuffix}.exe"
   $installerPath = Join-Path $script:DistDirectory $installerName
-  $checksumName = "$installerName.sha256"
-  $checksumPath = Join-Path $script:DistDirectory $checksumName
 
   if (Test-Path -LiteralPath $installerPath) {
     throw "Refusing to overwrite existing installer: $installerPath"
   }
-  if (Test-Path -LiteralPath $checksumPath) {
-    throw "Refusing to overwrite existing checksum: $checksumPath"
-  }
 
   $installerCreated = $false
-  $checksumCreated = $false
   try {
     $sourceLength = (Get-Item -LiteralPath $SourcePath).Length
     $sourceHashBefore = (Get-FileHash -LiteralPath $SourcePath -Algorithm SHA256).Hash
@@ -670,29 +743,19 @@ function Publish-Installer {
       throw 'Installer length or SHA-256 changed during publication.'
     }
 
-    $checksumLine = "$destinationHash *$installerName$([Environment]::NewLine)"
-    Write-FileCreateNew -Path $checksumPath -Content $checksumLine
-    $checksumCreated = $true
-
-    Assert-DistSnapshotPreserved -Before $DistSnapshot -ExpectedNewFiles @($installerName, $checksumName)
+    Assert-InstallerSnapshotPreserved -Before $InstallerSnapshot -ExpectedNewFiles @($installerName)
     $finalDestinationHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
-    $finalChecksumContent = [System.IO.File]::ReadAllText($checksumPath)
-    if ($finalDestinationHash -ne $destinationHash -or $finalChecksumContent -cne $checksumLine) {
-      throw 'Published installer or checksum changed during final verification.'
+    if ($finalDestinationHash -ne $destinationHash) {
+      throw 'Published installer changed during final verification.'
     }
 
     return [pscustomobject]@{
       InstallerName = $installerName
       InstallerPath = $installerPath
-      ChecksumName = $checksumName
-      ChecksumPath = $checksumPath
       Length = $destinationLength
       Sha256 = $destinationHash
     }
   } catch {
-    if ($checksumCreated -and (Test-Path -LiteralPath $checksumPath)) {
-      [System.IO.File]::Delete($checksumPath)
-    }
     if ($installerCreated -and (Test-Path -LiteralPath $installerPath)) {
       [System.IO.File]::Delete($installerPath)
     }
@@ -703,25 +766,21 @@ function Publish-Installer {
 function Assert-PublishedPackage {
   param(
     [Parameter(Mandatory)] $PackageResult,
-    [Parameter(Mandatory)][hashtable] $DistSnapshot
+    [Parameter(Mandatory)][hashtable] $InstallerSnapshot
   )
 
   Assert-PeInstaller -Path $PackageResult.InstallerPath
   $installer = Get-Item -LiteralPath $PackageResult.InstallerPath
   $installerHash = (Get-FileHash -LiteralPath $PackageResult.InstallerPath -Algorithm SHA256).Hash
-  $expectedChecksum = "$($PackageResult.Sha256) *$($PackageResult.InstallerName)$([Environment]::NewLine)"
-  $checksumContent = [System.IO.File]::ReadAllText($PackageResult.ChecksumPath)
 
   if ($installer.Length -ne $PackageResult.Length -or $installerHash -ne $PackageResult.Sha256) {
     throw 'The published installer changed after its initial verification.'
   }
-  if ($checksumContent -cne $expectedChecksum) {
-    throw 'The published checksum file changed after its initial verification.'
-  }
 
-  Assert-DistSnapshotPreserved `
-    -Before $DistSnapshot `
-    -ExpectedNewFiles @($PackageResult.InstallerName, $PackageResult.ChecksumName)
+  Assert-InstallerSnapshotPreserved `
+    -Before $InstallerSnapshot `
+    -ExpectedNewFiles @($PackageResult.InstallerName)
+  Assert-DistContainsInstallersOnly
 }
 
 function Get-MutexName {
@@ -767,7 +826,7 @@ try {
   if ($Action -eq 'CleanOnly') {
     Write-Step -Message 'Cleaning generated files only'
     Invoke-GeneratedCleanup
-    Write-Host "`nCleanup completed. Existing dist files and dependencies were preserved." -ForegroundColor Green
+    Write-Host "`nCleanup completed. Existing installers and dependencies were preserved; dist contains installers only." -ForegroundColor Green
     return
   }
 
@@ -850,7 +909,8 @@ try {
   Initialize-Pnpm -PackageManagerSpec $packageManagerSpec -ExpectedVersion $pnpmVersion
 
   Ensure-DistDirectory
-  $distSnapshot = Get-DistSnapshot
+  Remove-NonInstallerDistContent
+  $installerSnapshot = Get-InstallerSnapshot
 
   if (Test-Path -LiteralPath $script:TargetDirectory) {
     Assert-DirectoryHasNoReparsePoints -Path $script:TargetDirectory
@@ -943,7 +1003,7 @@ try {
       -SourcePath $rawInstallerPath `
       -UniqueSuffix $uniqueSuffix `
       -ExpectedCommit $shortCommit `
-      -DistSnapshot $distSnapshot
+      -InstallerSnapshot $installerSnapshot
   } catch {
     $packageFailure = $_
   }
@@ -970,7 +1030,7 @@ try {
   $finalizationFailure = $null
   try {
     Write-Step -Message 'Revalidating published package before changelog update'
-    Assert-PublishedPackage -PackageResult $packageResult -DistSnapshot $distSnapshot
+    Assert-PublishedPackage -PackageResult $packageResult -InstallerSnapshot $installerSnapshot
 
     Write-Step -Message 'Revalidating repository identity before changelog update'
     [void] (Get-ValidatedRepositoryIdentity `
@@ -1013,8 +1073,7 @@ try {
   Write-Host "Installer: $($packageResult.InstallerPath)"
   Write-Host "Size: $($packageResult.Length) bytes"
   Write-Host "SHA-256: $($packageResult.Sha256)"
-  Write-Host "Checksum: $($packageResult.ChecksumPath)"
-  Write-Host 'Temporary build output was removed; node_modules and toolchain caches were preserved.'
+  Write-Host 'Temporary build output and non-installer dist content were removed; node_modules and toolchain caches were preserved.'
   Write-Host 'CHANGELOG.md was updated and must be committed separately.'
 } finally {
   if ($hadCargoTargetDirectory) {
