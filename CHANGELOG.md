@@ -10,9 +10,9 @@
 - 影响范围：仅影响打包脚本的原生命令文本解析与最终工作区校验，不改变构建产物、应用运行时或清理范围。
 - 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 均通过带前导空格的 `git status --short` 回归测试；上一提交的完整前后端测试、release/NSIS 构建、SHA-256 校验和清理流程已执行通过。
 <!-- package-slot source=7b36896 -->
-- 安装包：待生成
-- SHA-256：待生成
-- 构建提交：待生成
+- 安装包：`MotrixNext_3.9.7-beta.8_x64-setup_20260728-230821_2cd56ee.exe`
+- SHA-256：`0EE060850818A38718CFF3A22CBF77C7CB6AD7AD4DCBFF5AE3272737ABC8D8E2`
+- 构建提交：`2cd56ee`
 <!-- package-slot-end -->
 
 ### `7bf003f` - build: add safe package and cleanup script
