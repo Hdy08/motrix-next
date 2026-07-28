@@ -4,6 +4,17 @@
 
 ## 2026-07-28
 
+### `376186a` - build: retain installers only in dist
+
+- 改动内容：打包脚本不再生成 `.sha256` 旁车文件；普通打包与 `CleanOnly` 都会安全删除 `dist` 中的前端产物、子目录及其他非安装包内容，并强制验证最终仅保留根目录 `.exe` 安装包。清理前后通过文件名、长度和 SHA-256 快照保护既有安装包，遇到 reparse point 或包含 `.exe` 的子目录时拒绝递归删除。
+- 影响范围：仅影响本地 Windows 打包、安装包归档及清理流程；SHA-256 改为只记录在本文件。保留既有安装包、`node_modules`、`src-tauri\binaries`、Cargo/Rust 工具链与缓存，不影响后续重新打包。
+- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析通过，二者的 `CleanOnly` 正常路径及重复执行通过；清理前后的两个既有安装包文件名、长度和 SHA-256 完全一致，`dist` 仅剩安装包，临时构建目录已删除，依赖与 sidecar 已保留。完整前后端检查与 NSIS 打包将在填充下方 package-slot 时执行。
+<!-- package-slot source=376186a -->
+- 安装包：待生成
+- SHA-256：待生成
+- 构建提交：待生成
+<!-- package-slot-end -->
+
 ### `7b36896` - fix: preserve git status leading whitespace
 
 - 改动内容：原生命令输出仅裁剪结尾换行，不再移除 `git status --short` 用于表示工作区状态的前导空格，修复完整打包成功后最终状态守卫误报的问题。
