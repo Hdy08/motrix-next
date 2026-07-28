@@ -8,11 +8,11 @@
 
 - 改动内容：打包脚本不再生成 `.sha256` 旁车文件；普通打包与 `CleanOnly` 都会安全删除 `dist` 中的前端产物、子目录及其他非安装包内容，并强制验证最终仅保留根目录 `.exe` 安装包。清理前后通过文件名、长度和 SHA-256 快照保护既有安装包，遇到 reparse point 或包含 `.exe` 的子目录时拒绝递归删除。
 - 影响范围：仅影响本地 Windows 打包、安装包归档及清理流程；SHA-256 改为只记录在本文件。保留既有安装包、`node_modules`、`src-tauri\binaries`、Cargo/Rust 工具链与缓存，不影响后续重新打包。
-- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析通过，二者的 `CleanOnly` 正常路径及重复执行通过；清理前后的两个既有安装包文件名、长度和 SHA-256 完全一致，`dist` 仅剩安装包，临时构建目录已删除，依赖与 sidecar 已保留。完整前后端检查与 NSIS 打包将在填充下方 package-slot 时执行。
+- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析通过，二者的 `CleanOnly` 正常路径及重复执行通过；ESLint、Prettier、仓库完整性、`vue-tsc`、94 个前端测试文件（2159 项测试）、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试通过，release/NSIS 构建、安装包多阶段校验、Changelog 更新和最终清理均成功。三个安装包的文件名、长度和 SHA-256 均保持有效，`dist` 仅含安装包，依赖与 sidecar 已保留。
 <!-- package-slot source=376186a -->
-- 安装包：待生成
-- SHA-256：待生成
-- 构建提交：待生成
+- 安装包：`MotrixNext_3.9.7-beta.8_x64-setup_20260728-232528_a6b514a.exe`
+- SHA-256：`61C1ACEFDDFC195C60EB19C1F3D9BE95618BA5E9F96721147CB559405FB27E3D`
+- 构建提交：`a6b514a`
 <!-- package-slot-end -->
 
 ### `7b36896` - fix: preserve git status leading whitespace
