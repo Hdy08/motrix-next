@@ -201,12 +201,8 @@ function Invoke-Pnpm {
     -Description $Description
 }
 
-function Assert-DirectoryHasNoReparsePoints {
+function Assert-RegularDirectoryWithoutReparsePoint {
   param([Parameter(Mandatory)][string] $Path)
-
-  if (-not (Test-Path -LiteralPath $Path)) {
-    return
-  }
 
   $rootItem = Get-Item -LiteralPath $Path -Force
   if (-not $rootItem.PSIsContainer) {
@@ -215,6 +211,16 @@ function Assert-DirectoryHasNoReparsePoints {
   if (($rootItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw "Refusing to operate on reparse-point directory: $Path"
   }
+}
+
+function Assert-DirectoryHasNoReparsePoints {
+  param([Parameter(Mandatory)][string] $Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+
+  Assert-RegularDirectoryWithoutReparsePoint -Path $Path
 
   $reparsePoint = Get-ChildItem -LiteralPath $Path -Force -Recurse -ErrorAction Stop |
     Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } |
@@ -330,12 +336,12 @@ function Invoke-GeneratedCleanup {
 function Ensure-DistDirectory {
   Assert-PathComponentsAreNotReparsePoints -Path $script:DistDirectory
   if (Test-Path -LiteralPath $script:DistDirectory) {
-    Assert-DirectoryHasNoReparsePoints -Path $script:DistDirectory
+    Assert-RegularDirectoryWithoutReparsePoint -Path $script:DistDirectory
     return
   }
 
   [void] [System.IO.Directory]::CreateDirectory($script:DistDirectory)
-  Assert-DirectoryHasNoReparsePoints -Path $script:DistDirectory
+  Assert-RegularDirectoryWithoutReparsePoint -Path $script:DistDirectory
 }
 
 function Test-IsDistInstaller {
@@ -457,9 +463,33 @@ function Assert-DistContainsInstallersOnly {
   }
 }
 
+function Assert-SafeDistCleanupItem {
+  param([Parameter(Mandatory)][System.IO.FileSystemInfo] $Item)
+
+  if (Test-IsDistInstaller -Item $Item) {
+    throw "Refusing to remove an installer from dist: $($Item.FullName)"
+  }
+  if (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "Refusing to remove a reparse point from dist: $($Item.FullName)"
+  }
+  if (-not $Item.PSIsContainer) {
+    Assert-RegularFileWithoutReparsePoint -Path $Item.FullName
+    return
+  }
+
+  Assert-DirectoryHasNoReparsePoints -Path $Item.FullName
+  $nestedExecutable = Get-ChildItem -LiteralPath $Item.FullName -File -Force -Recurse |
+    Where-Object { $_.Extension -ieq '.exe' } |
+    Select-Object -First 1
+  if ($null -ne $nestedExecutable) {
+    throw "Refusing to remove a dist directory containing a possible installer: $($nestedExecutable.FullName)"
+  }
+}
+
 function Remove-NonInstallerDistContent {
   Ensure-DistDirectory
   $installerSnapshot = Get-InstallerSnapshot
+  $itemsToRemove = New-Object 'System.Collections.Generic.List[System.IO.FileSystemInfo]'
   $cleanupErrors = New-Object System.Collections.Generic.List[string]
 
   foreach ($item in @(Get-ChildItem -LiteralPath $script:DistDirectory -Force)) {
@@ -468,38 +498,48 @@ function Remove-NonInstallerDistContent {
     }
 
     try {
-      if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw "Refusing to remove a reparse point from dist: $($item.FullName)"
-      }
-      if ($item.PSIsContainer) {
-        Assert-DirectoryHasNoReparsePoints -Path $item.FullName
-        $nestedExecutable = Get-ChildItem -LiteralPath $item.FullName -File -Force -Recurse |
-          Where-Object { $_.Extension -ieq '.exe' } |
-          Select-Object -First 1
-        if ($null -ne $nestedExecutable) {
-          throw "Refusing to remove a dist directory containing a possible installer: $($nestedExecutable.FullName)"
-        }
-        Remove-Item -LiteralPath $item.FullName -Recurse -Force -ErrorAction Stop
-      } else {
-        Assert-RegularFileWithoutReparsePoint -Path $item.FullName
-        Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
-      }
-      if (Test-Path -LiteralPath $item.FullName) {
-        throw "dist cleanup verification failed; path still exists: $($item.FullName)"
-      }
-
-      Write-Host "Removed non-installer dist content: $($item.FullName)"
+      Assert-SafeDistCleanupItem -Item $item
+      [void] $itemsToRemove.Add($item)
     } catch {
       $cleanupErrors.Add($_.Exception.Message)
     }
   }
 
+  if ($cleanupErrors.Count -eq 0) {
+    foreach ($item in $itemsToRemove) {
+      try {
+        $currentItem = Get-Item -LiteralPath $item.FullName -Force
+        Assert-SafeDistCleanupItem -Item $currentItem
+        if ($currentItem.PSIsContainer) {
+          Remove-Item -LiteralPath $currentItem.FullName -Recurse -Force -ErrorAction Stop
+        } else {
+          Remove-Item -LiteralPath $currentItem.FullName -Force -ErrorAction Stop
+        }
+        if (Test-Path -LiteralPath $currentItem.FullName) {
+          throw "dist cleanup verification failed; path still exists: $($currentItem.FullName)"
+        }
+
+        Write-Host "Removed non-installer dist content: $($currentItem.FullName)"
+      } catch {
+        $cleanupErrors.Add($_.Exception.Message)
+      }
+    }
+  }
+
+  try {
+    Assert-InstallerSnapshotPreserved -Before $installerSnapshot -ExpectedNewFiles @()
+  } catch {
+    $cleanupErrors.Add($_.Exception.Message)
+  }
+  try {
+    Assert-DistContainsInstallersOnly
+  } catch {
+    $cleanupErrors.Add($_.Exception.Message)
+  }
+
   if ($cleanupErrors.Count -gt 0) {
     throw "Failed to clean non-installer dist content:$([Environment]::NewLine)- $($cleanupErrors -join "$([Environment]::NewLine)- ")"
   }
-
-  Assert-InstallerSnapshotPreserved -Before $installerSnapshot -ExpectedNewFiles @()
-  Assert-DistContainsInstallersOnly
 }
 
 function Get-PendingPackageSlot {
