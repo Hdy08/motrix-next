@@ -7,9 +7,9 @@ Builds a uniquely named Windows installer and removes generated build output.
 .DESCRIPTION
 The default Package action verifies the repository, runs the required frontend
 and Rust checks, builds frontend assets outside the protected dist directory,
-creates an unsigned NSIS installer, verifies SHA-256, updates the single pending
-CHANGELOG package slot, removes fixed allowlisted temporary directories, and
-leaves only installers in the dist directory.
+creates an unsigned NSIS installer, verifies embedded frontend assets and
+SHA-256, updates the single pending CHANGELOG package slot, removes fixed
+allowlisted temporary directories, and leaves only installers in dist.
 
 .EXAMPLE
 .\package-and-clean.ps1
@@ -650,12 +650,13 @@ function Update-PackageSlot {
   }
 }
 
-function Assert-PeInstaller {
+function Assert-PeFile {
   param([Parameter(Mandatory)][string] $Path)
 
+  Assert-RegularFileWithoutReparsePoint -Path $Path
   $file = Get-Item -LiteralPath $Path
   if ($file.Length -lt 1MB) {
-    throw "Installer is unexpectedly small ($($file.Length) bytes): $Path"
+    throw "PE file is unexpectedly small ($($file.Length) bytes): $Path"
   }
 
   $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
@@ -667,7 +668,71 @@ function Assert-PeInstaller {
   }
 
   if ($first -ne 0x4D -or $second -ne 0x5A) {
-    throw "Installer does not have a valid PE MZ header: $Path"
+    throw "File does not have a valid PE MZ header: $Path"
+  }
+}
+
+function Assert-FileContainsAsciiText {
+  param(
+    [Parameter(Mandatory)][string] $Path,
+    [Parameter(Mandatory)][string] $Text,
+    [Parameter(Mandatory)][string] $Description
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Text) -or $Text -match '[^\x00-\x7F]') {
+    throw "The expected $Description must be non-empty ASCII text."
+  }
+
+  $chunkSize = 1MB
+  $overlapSize = $Text.Length - 1
+  $buffer = New-Object byte[] ($chunkSize + $overlapSize)
+  $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+  $carryLength = 0
+  $found = $false
+  try {
+    while (($readLength = $stream.Read($buffer, $carryLength, $chunkSize)) -gt 0) {
+      $totalLength = $carryLength + $readLength
+      $chunkText = [System.Text.Encoding]::ASCII.GetString($buffer, 0, $totalLength)
+      if ($chunkText.IndexOf($Text, [System.StringComparison]::Ordinal) -ge 0) {
+        $found = $true
+        break
+      }
+
+      $carryLength = [System.Math]::Min($overlapSize, $totalLength)
+      if ($carryLength -gt 0) {
+        [System.Array]::Copy($buffer, $totalLength - $carryLength, $buffer, 0, $carryLength)
+      }
+    }
+  } finally {
+    $stream.Dispose()
+  }
+
+  if (-not $found) {
+    throw "The built application does not contain the expected $Description '$Text': $Path"
+  }
+}
+
+function Remove-StaleBuildFile {
+  param(
+    [Parameter(Mandatory)][string] $Path,
+    [Parameter(Mandatory)][string] $Description
+  )
+
+  $normalizedPath = Get-NormalizedPath -Path $Path
+  $targetPrefix = $script:TargetDirectory + [System.IO.Path]::DirectorySeparatorChar
+  if (-not $normalizedPath.StartsWith($targetPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove $Description outside the target directory: $normalizedPath"
+  }
+
+  Assert-PathComponentsAreNotReparsePoints -Path $normalizedPath
+  if (-not (Test-Path -LiteralPath $normalizedPath)) {
+    return
+  }
+
+  Assert-RegularFileWithoutReparsePoint -Path $normalizedPath
+  [System.IO.File]::Delete($normalizedPath)
+  if (Test-Path -LiteralPath $normalizedPath) {
+    throw "Failed to remove stale ${Description}: $normalizedPath"
   }
 }
 
@@ -756,7 +821,7 @@ function Publish-Installer {
     throw "Package suffix '$UniqueSuffix' does not contain the current commit '$ExpectedCommit'."
   }
 
-  Assert-PeInstaller -Path $SourcePath
+  Assert-PeFile -Path $SourcePath
   Ensure-DistDirectory
 
   $sourceName = [System.IO.Path]::GetFileNameWithoutExtension($SourcePath)
@@ -775,7 +840,7 @@ function Publish-Installer {
     Copy-FileCreateNew -Source $SourcePath -Destination $installerPath
     $installerCreated = $true
 
-    Assert-PeInstaller -Path $installerPath
+    Assert-PeFile -Path $installerPath
     $destinationLength = (Get-Item -LiteralPath $installerPath).Length
     $destinationHash = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash
     $sourceHashAfter = (Get-FileHash -LiteralPath $SourcePath -Algorithm SHA256).Hash
@@ -809,7 +874,7 @@ function Assert-PublishedPackage {
     [Parameter(Mandatory)][hashtable] $InstallerSnapshot
   )
 
-  Assert-PeInstaller -Path $PackageResult.InstallerPath
+  Assert-PeFile -Path $PackageResult.InstallerPath
   $installer = Get-Item -LiteralPath $PackageResult.InstallerPath
   $installerHash = (Get-FileHash -LiteralPath $PackageResult.InstallerPath -Algorithm SHA256).Hash
 
@@ -905,6 +970,14 @@ try {
   if ([string] $packageJson.version -ne $version) {
     throw "Version mismatch: package.json=$($packageJson.version), Cargo.toml=$version."
   }
+  $binaryTargets = @($matchingPackages[0].targets | Where-Object { @($_.kind) -contains 'bin' })
+  if ($binaryTargets.Count -ne 1) {
+    throw "Cargo metadata must contain exactly one binary target; found $($binaryTargets.Count)."
+  }
+  $binaryName = [string] $binaryTargets[0].name
+  if ([string]::IsNullOrWhiteSpace($binaryName) -or $binaryName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0) {
+    throw "Invalid Cargo binary target name '$binaryName'."
+  }
 
   $tauriConfig = Get-Content -LiteralPath $script:TauriConfigPath -Raw | ConvertFrom-Json
   $productName = [string] $tauriConfig.productName
@@ -965,7 +1038,19 @@ try {
   }
   [void] [System.IO.Directory]::CreateDirectory($packageWorkDirectory)
   $frontendDirectory = Join-Path $packageWorkDirectory 'frontend'
+  $frontendDistRelativePath = 'target/package-work/frontend'
   $overlayConfigPath = Join-Path $packageWorkDirectory 'tauri.package.conf.json'
+
+  # Tauri deserializes URL before directory, so a Windows drive path disables asset embedding.
+  $frontendDistUri = $null
+  if ([System.IO.Path]::IsPathRooted($frontendDistRelativePath) -or
+      [System.Uri]::TryCreate($frontendDistRelativePath, [System.UriKind]::Absolute, [ref] $frontendDistUri)) {
+    throw "The packaging frontendDist must be a relative directory path: $frontendDistRelativePath"
+  }
+  $resolvedFrontendDist = Get-NormalizedPath -Path (Join-Path $script:TauriRoot $frontendDistRelativePath)
+  if ($resolvedFrontendDist -ne (Get-NormalizedPath -Path $frontendDirectory)) {
+    throw "The packaging frontendDist resolves to '$resolvedFrontendDist' instead of '$frontendDirectory'."
+  }
 
   $env:CARGO_TARGET_DIR = $script:TargetDirectory
   $env:CARGO_BUILD_TARGET = $targetTriple
@@ -992,11 +1077,20 @@ try {
     if (-not (Test-Path -LiteralPath $frontendIndex -PathType Leaf) -or (Get-Item -LiteralPath $frontendIndex).Length -eq 0) {
       throw "Isolated frontend build did not produce a valid index.html: $frontendIndex"
     }
+    $frontendEntryScripts = @(Get-ChildItem -LiteralPath (Join-Path $frontendDirectory 'assets') -File -Filter 'main-*.js')
+    if ($frontendEntryScripts.Count -ne 1) {
+      throw "Isolated frontend build must produce exactly one main JavaScript entry; found $($frontendEntryScripts.Count)."
+    }
+    $frontendEntryName = $frontendEntryScripts[0].Name
+    $frontendIndexContent = [System.IO.File]::ReadAllText($frontendIndex)
+    if ($frontendIndexContent.IndexOf($frontendEntryName, [System.StringComparison]::Ordinal) -lt 0) {
+      throw "Isolated frontend index.html does not reference '$frontendEntryName'."
+    }
 
     $overlay = [ordered]@{
       build = [ordered]@{
         beforeBuildCommand = $null
-        frontendDist = ($frontendDirectory -replace '\\', '/')
+        frontendDist = $frontendDistRelativePath
       }
       bundle = [ordered]@{
         createUpdaterArtifacts = $false
@@ -1006,30 +1100,39 @@ try {
     [System.IO.File]::WriteAllText($overlayConfigPath, $overlayJson, $script:Utf8NoBom)
 
     $expectedInstallerName = "${productName}_${version}_${architectureLabel}-setup.exe"
+    $rawApplicationPath = Join-Path $script:TargetDirectory "$targetTriple/release/$binaryName.exe"
     $rawInstallerPath = Join-Path $script:TargetDirectory "$targetTriple/release/bundle/nsis/$expectedInstallerName"
-    Assert-PathComponentsAreNotReparsePoints -Path $rawInstallerPath
-    if (Test-Path -LiteralPath $rawInstallerPath) {
-      $rawInstallerItem = Get-Item -LiteralPath $rawInstallerPath -Force
-      if ($rawInstallerItem.PSIsContainer -or ($rawInstallerItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw "Refusing to replace an unexpected raw installer path: $rawInstallerPath"
-      }
-      [System.IO.File]::Delete($rawInstallerPath)
-    }
+    Remove-StaleBuildFile -Path $rawApplicationPath -Description 'raw application executable'
+    Remove-StaleBuildFile -Path $rawInstallerPath -Description 'raw installer'
 
     $tauriBuildStartedUtc = [System.DateTime]::UtcNow
     Invoke-Pnpm `
       -PnpmArguments @('tauri', 'build', '--target', $targetTriple, '--bundles', 'nsis', '--ci', '--no-sign', '--config', $overlayConfigPath) `
       -Description 'Building unsigned Windows NSIS installer'
 
+    if (-not (Test-Path -LiteralPath $rawApplicationPath -PathType Leaf)) {
+      throw "Expected application executable was not generated: $rawApplicationPath"
+    }
     if (-not (Test-Path -LiteralPath $rawInstallerPath -PathType Leaf)) {
       throw "Expected NSIS installer was not generated: $rawInstallerPath"
     }
+    Assert-PathComponentsAreNotReparsePoints -Path $rawApplicationPath
     Assert-PathComponentsAreNotReparsePoints -Path $rawInstallerPath
+    Assert-RegularFileWithoutReparsePoint -Path $rawApplicationPath
     Assert-RegularFileWithoutReparsePoint -Path $rawInstallerPath
+    $rawApplicationItem = Get-Item -LiteralPath $rawApplicationPath
     $rawInstallerItem = Get-Item -LiteralPath $rawInstallerPath
+    if ($rawApplicationItem.LastWriteTimeUtc -lt $tauriBuildStartedUtc.AddSeconds(-5)) {
+      throw "The application executable does not appear to come from the current build: $rawApplicationPath"
+    }
     if ($rawInstallerItem.LastWriteTimeUtc -lt $tauriBuildStartedUtc.AddSeconds(-5)) {
       throw "The NSIS installer does not appear to come from the current build: $rawInstallerPath"
     }
+    Assert-PeFile -Path $rawApplicationPath
+    Assert-FileContainsAsciiText `
+      -Path $rawApplicationPath `
+      -Text $frontendEntryName `
+      -Description 'embedded frontend entry'
 
     Write-Step -Message 'Revalidating repository identity before publication'
     [void] (Get-ValidatedRepositoryIdentity `
