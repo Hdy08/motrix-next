@@ -8,11 +8,11 @@
 
 - 改动内容：将 `dist` 非安装包清理拆为完整预扫描与实际删除两个阶段；遇到 reparse point、包含 `.exe` 的子目录或其他可预知风险时，在删除开始前统一拒绝。实际删除前会重新读取并复核项目，且无论清理成功或失败都会校验既有安装包快照和最终目录结构，再聚合返回全部错误。
 - 影响范围：仅强化本地打包脚本的异常处理与安全删除边界，不改变安装包内容、命名、应用运行时或正常清理结果。
-- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析及重复 `CleanOnly` 通过；含嵌套 `.exe` 的目录会在删除开始前阻断，锁定文件会正确返回失败，reparse point 会被拒绝且目标目录不受影响。三类失败测试前后的三个既有安装包文件名、长度和 SHA-256 均一致，解除测试条件后恢复清理成功。完整前后端检查与 NSIS 打包将在填充下方 package-slot 时执行。
+- 验证结果：PowerShell 7.6.4 与 Windows PowerShell 5.1 解析及重复 `CleanOnly` 通过；含嵌套 `.exe` 的目录会在删除开始前阻断，锁定文件会正确返回失败，reparse point 会被拒绝且目标目录不受影响，解除条件后均可恢复清理。ESLint、Prettier、仓库完整性、`vue-tsc`、94 个前端测试文件（2159 项测试）、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试通过，release/NSIS 构建、安装包多阶段校验、Changelog 更新和最终清理成功。四个安装包的文件名、长度和 SHA-256 均保持有效，`dist` 仅含安装包，依赖与 sidecar 已保留。
 <!-- package-slot source=c647a41 -->
-- 安装包：待生成
-- SHA-256：待生成
-- 构建提交：待生成
+- 安装包：`MotrixNext_3.9.7-beta.8_x64-setup_20260728-235452_ed17bd7.exe`
+- SHA-256：`83249ABDF11D0156B5AE1275F3236A7A12A188DE77649D1D582B012E321A8DF6`
+- 构建提交：`ed17bd7`
 <!-- package-slot-end -->
 
 ### `376186a` - build: retain installers only in dist
