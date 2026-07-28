@@ -4,6 +4,17 @@
 
 ## 2026-07-29
 
+### `0869c8a` - fix: refine background and speedometer opacity
+
+- 改动内容：将自定义背景图片不透明度的默认值从 35% 调整为 50%，并将内置任务列表水印的固定 35% 设计透明度与该配置解耦；速度限制按钮不再对整个元素应用 `opacity`，改为仅通过 `color-mix` 调整背景和边框透明度，使速度、限速数值等前景文本始终保持原有不透明度。
+- 影响范围：新安装、缺失或非法配置修复及恢复默认设置会使用 50% 背景图片不透明度；已有合法保存值（包括 35%）保持不变，不新增配置迁移。速度限制按钮的背景和边框继续响应透明度设置，前景内容及其原有状态样式不再被额外淡化。
+- 验证结果：ESLint、Prettier、仓库完整性、`vue-tsc`、95 个前端测试文件（2160 项测试）、隔离目录 Vite 生产构建、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试通过；生产 CSS 已确认使用背景/边框百分比混色且不存在旧的整元素透明度规则。
+<!-- package-slot source=0869c8a -->
+- 安装包：待生成
+- SHA-256：待生成
+- 构建提交：待生成
+<!-- package-slot-end -->
+
 ### `cbf6b8b` - fix: embed frontend assets in packaged app
 
 - 改动内容：修复 Windows 打包 overlay 将绝对 `frontendDist` 误解析为外部 URL、导致 Tauri 不嵌入前端资源的问题；改用相对 `src-tauri` 的 `target/package-work/frontend`，并在写入配置前校验其既非绝对路径也非 URL。打包后会从 Cargo metadata 定位当前应用 EXE，并流式确认 Vite 的唯一主入口文件名已实际嵌入二进制，未嵌入时禁止发布安装包。
