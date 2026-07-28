@@ -10,9 +10,9 @@
 - 影响范围：新安装、缺失或非法配置修复及恢复默认设置会使用 50% 背景图片不透明度；已有合法保存值（包括 35%）保持不变，不新增配置迁移。速度限制按钮的背景和边框继续响应透明度设置，前景内容及其原有状态样式不再被额外淡化。
 - 验证结果：ESLint、Prettier、仓库完整性、`vue-tsc`、95 个前端测试文件（2160 项测试）、隔离目录 Vite 生产构建、Rust 格式、Clippy、全目标检查及 516 项 Rust 测试通过；生产 CSS 已确认使用背景/边框百分比混色且不存在旧的整元素透明度规则。
 <!-- package-slot source=0869c8a -->
-- 安装包：待生成
-- SHA-256：待生成
-- 构建提交：待生成
+- 安装包：`MotrixNext_3.9.7-beta.8_x64-setup_20260729-014105_5d6dbe8.exe`
+- SHA-256：`4E6503912A9D16237D4FF4221B0B5822373966C8677CBA7EAD35B6891D6A4B1C`
+- 构建提交：`5d6dbe8`
 <!-- package-slot-end -->
 
 ### `cbf6b8b` - fix: embed frontend assets in packaged app
